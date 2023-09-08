@@ -1,0 +1,23 @@
+---
+- name: Main
+  hosts: all
+  tasks:
+  - name: Compile Artifact
+    local_action:
+      ansible.builtin.shell cargo build --release --example coding_bench
+    run_once: true
+  - name: Copy Compiled Artifact
+    ansible.builtin.copy:
+      src: ../../target/release/examples/coding_bench
+      dest: .
+      mode: preserve
+  - name: Run
+    ansible.builtin.shell: ./coding_bench > coding-time.csv
+  - name: Fetch Result
+    ansible.builtin.fetch:
+      src: "coding-time.csv"
+      dest: "../../coding-time_{{ ansible_date_time.epoch }}"
+  - name: Clean Remote
+    ansible.builtin.file:
+      path: "coding-time.csv"
+      state: absent

@@ -1,0 +1,31 @@
+[package]
+name = "simple-entropy"
+version = "0.1.0"
+edition = "2021"
+default-run = "simple-entropy"
+
+[profile.artifact]
+inherits = "release"
+panic = "abort"
+strip = true
+# lto = true
+# codegen-units = 1
+
+[dependencies]
+actix-web = "4.3.1"
+actix-web-opentelemetry = { version = "0.15.0", features = ["awc"] }
+awc = "3.1.1"
+clap = { version = "4.3.23", features = ["derive"] }
+ed25519-dalek = { version = "2.0.0", features = ["serde", "rand_core"] }
+opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }
+opentelemetry-jaeger = "0.19.0"
+opentelemetry-otlp = "0.13.0"
+rand = "0.8.5"
+serde = { version = "1.0.185", features = ["derive"] }
+serde_json = "1.0.105"
+sha2 = "0.10.7"
+tokio = { version = "1.32.0", features = ["full"] }
+tracing = "0.1.37"
+tracing-opentelemetry = "0.20.0"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json"] }
+wirehair = { version = "0.1.0", path = "wirehair" }
