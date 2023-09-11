@@ -23,8 +23,8 @@ use sha2::{Digest, Sha256};
 use tokio::{
     spawn,
     sync::{mpsc, oneshot},
-    task::spawn_local,
 };
+use tokio_util::task::LocalPoolHandle;
 use tracing::{info, instrument};
 use wirehair::{WirehairDecoder, WirehairEncoder};
 
@@ -263,6 +263,7 @@ pub struct State {
     get_recovers: HashMap<usize, WirehairDecoder>,
 
     messages: mpsc::WeakUnboundedSender<StateMessage>,
+    local: LocalPoolHandle,
 }
 
 #[derive(Debug)]
@@ -324,6 +325,7 @@ impl State {
             put_uploads: Default::default(),
             get_recovers: Default::default(),
             messages: messages.0.downgrade(),
+            local: LocalPoolHandle::new(1),
         };
         let run_state = async move {
             state.run(messages.1).await;
@@ -461,31 +463,31 @@ impl State {
         let hex_key = hex_string(key);
         let peer_uri = peer.uri.clone();
         let local_peer = self.local_peer.clone();
-        let task = async move {
-            let response = Client::new()
-                .post(format!("{}/upload/invite/{hex_key}/{index}", peer_uri))
-                .trace_request()
-                .send_json(&local_peer)
-                .await
-                .ok()?;
-            if response.status() == StatusCode::OK {
-                Some(())
-            } else {
-                None
-            }
-        };
         let messages = self.messages.clone();
         let key = *key;
-        spawn_local(
+        self.local.spawn_pinned(move || {
             async move {
+                let task = async move {
+                    let response = Client::new()
+                        .post(format!("{}/upload/invite/{hex_key}/{index}", peer_uri))
+                        .trace_request()
+                        .send_json(&local_peer)
+                        .await
+                        .ok()?;
+                    if response.status() == StatusCode::OK {
+                        Some(())
+                    } else {
+                        None
+                    }
+                };
                 if task.with_current_context().await.is_none() {
                     if let Some(messages) = messages.upgrade() {
                         let _ = messages.send(AppCommand::UploadExtraInvite(key).into());
                     }
                 }
             }
-            .with_current_context(),
-        );
+            .with_current_context()
+        });
     }
 
     #[instrument(skip(self))]
@@ -545,7 +547,7 @@ impl State {
         let hex_key = hex_string(key);
         let messages = self.messages.clone();
         let key = *key;
-        spawn_local(
+        self.local.spawn_pinned(move || {
             async move {
                 let mut response = Client::new()
                     .get(format!("{}/upload/query-fragment/{hex_key}", message.uri))
@@ -563,8 +565,8 @@ impl State {
                     .ok()?;
                 Some(())
             }
-            .with_current_context(),
-        );
+            .with_current_context()
+        });
         let _ = result.send(true);
     }
 
@@ -593,7 +595,7 @@ impl State {
             for member in upload.members.clone() {
                 let hex_key = hex_key.clone();
                 let members = upload.members.clone();
-                tasks.push(spawn_local(
+                tasks.push(self.local.spawn_pinned(|| {
                     async move {
                         let _ = Client::new()
                             .post(format!("{}/upload/complete/{hex_key}", member.peer.uri))
@@ -601,8 +603,8 @@ impl State {
                             .send_json(&members)
                             .await;
                     }
-                    .with_current_context(),
-                ));
+                    .with_current_context()
+                }));
             }
             let messages = self.messages.clone();
             let key = *key;
@@ -670,7 +672,7 @@ impl State {
                 let key = *key;
                 let index = member.index;
                 let messages = self.messages.clone();
-                spawn_local(
+                self.local.spawn_pinned(move || {
                     async move {
                         let mut response = Client::new()
                             .get(format!("{}/download/query-fragment/{hex_key}", peer_uri))
@@ -688,8 +690,8 @@ impl State {
                             .ok()?;
                         Some(())
                     }
-                    .with_current_context(),
-                );
+                    .with_current_context()
+                });
             }
         }
     }
@@ -806,7 +808,7 @@ impl State {
             let hex_key = hex_key.clone();
             let messages = self.messages.clone();
             let key = *key;
-            spawn_local(
+            self.local.spawn_pinned(move || {
                 async move {
                     let fragment = Client::new()
                         .get(format!(
@@ -826,8 +828,8 @@ impl State {
                         .ok()?;
                     Some(())
                 }
-                .with_current_context(),
-            );
+                .with_current_context()
+            });
         }
     }
 

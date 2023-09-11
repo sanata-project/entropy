@@ -2,8 +2,10 @@ import asyncio
 import sys
 
 ARGV = dict(enumerate(sys.argv))
-HOSTS = ["10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"]
-SSH_HOSTS = ["nsl-node1.d2", "nsl-node2.d2", "nsl-node3.d2", "nsl-node4.d2"]
+# HOSTS = ["10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"]
+# SSH_HOSTS = ["nsl-node1.d2", "nsl-node2.d2", "nsl-node3.d2", "nsl-node4.d2"]
+HOSTS = ["10.0.0.1"]
+SSH_HOSTS = ["nsl-node1.d2"]
 WORK_DIR = "/local/cowsay/artifacts"
 ARTIFACT = "./target/artifact/simple-entropy"
 SPAWN_MONITER = "./scripts/spawn_monitor.py"

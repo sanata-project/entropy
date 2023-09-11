@@ -17,7 +17,7 @@ use tokio::{
     net::TcpListener,
     spawn,
     sync::mpsc,
-    task::spawn_local,
+    task::{spawn_blocking, spawn_local},
     time::{sleep, timeout},
 };
 
@@ -35,7 +35,7 @@ mod plaza;
 #[derive(Debug, Serialize, Deserialize)]
 enum Participant {
     Peer(Peer),
-    Invalid,
+    BenchmarkPeer(Peer),
 }
 
 #[derive(clap::Parser)]
@@ -45,6 +45,8 @@ struct Cli {
     plaza_service: Option<usize>,
     #[clap(long)]
     plaza: Option<String>,
+    #[clap(long)]
+    benchmark: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,7 +76,7 @@ async fn main() {
         let (run, configure) = plaza::State::spawn::<Participant>(
             expect_number,
             Shared {
-                fragment_size: 100,
+                fragment_size: 4 << 20,
                 inner_k: 4,
                 inner_n: 4,
                 outer_k: 10,
@@ -136,13 +138,10 @@ async fn main() {
         opentelemetry::global::tracer("").start("poll network"),
     )));
 
-    let peer_store = peer::Store::new(Vec::from_iter(run.participants.into_iter().filter_map(
-        |participant| {
-            if let Participant::Peer(peer) = participant {
-                Some(peer)
-            } else {
-                None
-            }
+    let peer_store = peer::Store::new(Vec::from_iter(run.participants.into_iter().map(
+        |participant| match participant {
+            Participant::Peer(peer) => peer,
+            Participant::BenchmarkPeer(peer) => peer,
         },
     )));
     assert_eq!(peer_store.closest_peers(&peer.id, 1)[0].id, peer.id);
@@ -166,7 +165,19 @@ async fn main() {
         peer_store,
         chunk_store,
     );
-    let app_handle = spawn_local(run_app);
+    let app_runtime = if cli.benchmark {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .worker_threads(32)
+            .build()
+            .unwrap()
+    } else {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    };
+    let app_handle = spawn_blocking(move || app_runtime.block_on(run_app));
 
     let server = HttpServer::new(move || {
         App::new()
@@ -199,7 +210,11 @@ async fn join_network(peer: &Peer, cli: &Cli) -> Option<ReadyRun> {
     let mut response = client
         .post(format!("{}/join", cli.plaza.as_ref().unwrap()))
         .trace_request()
-        .send_json(&Participant::Peer(peer.clone()))
+        .send_json(&if cli.benchmark {
+            Participant::BenchmarkPeer(peer.clone())
+        } else {
+            Participant::Peer(peer.clone())
+        })
         .await
         .unwrap();
     if response.status() != StatusCode::OK {
