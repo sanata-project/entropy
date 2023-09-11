@@ -26,7 +26,11 @@ async def list_peer():
             if "Ready" in run:
                 break
             await asyncio.sleep(1)
-    peers = [participant["Peer"]["uri"] for participant in run["Ready"]["participants"]]
+    peers = [
+        participant["BenchmarkPeer"]["uri"]
+        for participant in run["Ready"]["participants"]
+        if "BenchmarkPeer" in participant
+    ]
     wait = to_timestamp(run["Ready"]["assemble_time"]) - time.time() + 2
     if wait > 0:
         await asyncio.sleep(wait)
@@ -45,6 +49,7 @@ async def put_get(peer):
                     break
         latency = to_timestamp(result["put_end"]) - to_timestamp(result["put_start"])
         print(f"{peer},put,{latency}")
+        await asyncio.sleep(10)  # TODO
 
         await session.post(f"{peer}/benchmark/get/{put_id}")
         while True:

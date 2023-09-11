@@ -4,6 +4,7 @@ import sys
 ARGV = dict(enumerate(sys.argv))
 HOST = ARGV.get(1, "10.0.0.1")
 NUM_PEER = 100
+NUM_BENCHMARK_PEER = 1
 WORK_DIR = "/local/cowsay/artifacts"
 PLAZA = "http://nsl-node1.d2:8080"
 
@@ -11,13 +12,22 @@ PLAZA = "http://nsl-node1.d2:8080"
 async def run_peers():
     tasks = []
     for index in range(NUM_PEER):
-        proc = await asyncio.create_subprocess_shell(
-            "RUST_LOG=info RUST_BACKTRACE=1"
-            " OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://nsl-node1.d2:4317"
-            f" {WORK_DIR}/entropy {HOST} --plaza {PLAZA}"
-            f" 1> {WORK_DIR}/entropy-{index:03}-output.txt"
-            f" 2> {WORK_DIR}/entropy-{index:03}-errors.txt"
-        )
+        command = [
+            "RUST_LOG=info",
+            "RUST_BACKTRACE=1",
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://nsl-node1.d2:4317",
+            f"{WORK_DIR}/entropy",
+            HOST,
+            "--plaza",
+            PLAZA,
+        ]
+        if index < NUM_BENCHMARK_PEER:
+            command.append("--benchmark")
+        command += [
+            f"1>{WORK_DIR}/entropy-{index:03}-output.txt",
+            f"2>{WORK_DIR}/entropy-{index:03}-errors.txt",
+        ]
+        proc = await asyncio.create_subprocess_shell(" ".join(command))
 
         async def wait(proc, index):
             code = await proc.wait()
