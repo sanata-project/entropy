@@ -73,10 +73,10 @@ async fn main() {
         common::setup_tracing([KeyValue::new("service.name", "entropy.plaza")]);
 
         let mut shutdown = mpsc::unbounded_channel();
-        let (run, configure) = plaza::State::spawn::<Participant>(
+        let (run, configure) = plaza::State::create::<Participant>(
             expect_number,
             Shared {
-                fragment_size: 4 << 20,
+                fragment_size: 100,
                 inner_k: 4,
                 inner_n: 4,
                 outer_k: 10,
@@ -103,7 +103,7 @@ async fn main() {
 
         server.await.unwrap();
         state_handle.await.unwrap(); // inspect returned state if necessary
-        common::shutdown_tracing().await;
+        spawn_blocking(common::shutdown_tracing).await.unwrap();
         return;
     }
 
@@ -112,7 +112,14 @@ async fn main() {
     let peer_id = Sha256::digest(verifying_key);
     println!("{}", hex_string(&peer_id));
     common::setup_tracing([
-        KeyValue::new("service.name", "entropy.peer"),
+        KeyValue::new(
+            "service.name",
+            if cli.benchmark {
+                "entropy.benchmark-peer"
+            } else {
+                "entropy.peer"
+            },
+        ),
         KeyValue::new("service.instance.id", hex_string(&peer_id)),
     ]);
 
@@ -130,7 +137,7 @@ async fn main() {
         ))
         .await;
     let Some(run) = run else {
-        common::shutdown_tracing().await;
+        spawn_blocking(common::shutdown_tracing);
         return;
     };
 
@@ -154,7 +161,7 @@ async fn main() {
         run.shared.inner_k,
     );
 
-    let (run_app, configuration) = app::State::spawn(
+    let (run_app, configuration) = app::State::create(
         peer,
         signing_key,
         run.shared.fragment_size,
@@ -197,11 +204,13 @@ async fn main() {
 
     println!("READY");
     server.await.unwrap();
+    println!("EXIT");
 
     app_handle.await.unwrap();
     tokio::fs::remove_dir_all(&chunk_path).await.unwrap();
     leave_network(&cli, run.join_id).await;
-    common::shutdown_tracing().await;
+    println!("leaved");
+    // spawn_blocking(common::shutdown_tracing).await.unwrap();
 }
 
 // #[instrument(skip_all, fields(peer = common::hex_string(&peer.id)))]
@@ -259,12 +268,14 @@ async fn join_network(peer: &Peer, cli: &Cli) -> Option<ReadyRun> {
 
 async fn leave_network(cli: &Cli, join_id: u32) {
     let client = Client::new();
+    println!("post leave");
     let response = client
         .post(format!("{}/leave/{join_id}", cli.plaza.as_ref().unwrap()))
         .trace_request()
         .send()
         .await
         .unwrap();
+    println!("{response:?}");
     assert_eq!(response.status(), StatusCode::OK);
 }
 

@@ -23,6 +23,7 @@ use sha2::{Digest, Sha256};
 use tokio::{
     spawn,
     sync::{mpsc, oneshot},
+    task::JoinHandle,
 };
 use tokio_util::task::LocalPoolHandle;
 use tracing::{info, instrument};
@@ -295,7 +296,7 @@ struct PutState {
 }
 
 impl State {
-    pub fn spawn(
+    pub fn create(
         local_peer: Peer,
         local_secret: SigningKey,
         fragment_size: u32,
@@ -397,6 +398,15 @@ impl State {
             .service(benchmark_get);
     }
 
+    fn spawn_local<F: Future<Output = T> + 'static, T: Send + 'static>(
+        &self,
+        create: impl FnOnce() -> F + Send + 'static,
+    ) -> JoinHandle<T> {
+        let context = Context::current();
+        self.local
+            .spawn_pinned(move || create().with_context(context))
+    }
+
     #[instrument(skip(self))]
     fn handle_put(&mut self, result: oneshot::Sender<usize>) {
         if let Some(put_state) = self.put_states.last() {
@@ -427,6 +437,7 @@ impl State {
             let messages = self.messages.clone();
             spawn(
                 async move {
+                    let _entered = tracing::info_span!("encode chunk", outer_index).entered();
                     let mut chunk = vec![0; (fragment_size * inner_k) as _];
                     encoder.encode(outer_index, &mut chunk).unwrap();
                     if let Some(messages) = messages.upgrade() {
@@ -465,7 +476,7 @@ impl State {
         let local_peer = self.local_peer.clone();
         let messages = self.messages.clone();
         let key = *key;
-        self.local.spawn_pinned(move || {
+        self.spawn_local(move || {
             async move {
                 let task = async move {
                     let response = Client::new()
@@ -547,7 +558,7 @@ impl State {
         let hex_key = hex_string(key);
         let messages = self.messages.clone();
         let key = *key;
-        self.local.spawn_pinned(move || {
+        self.spawn_local(move || {
             async move {
                 let mut response = Client::new()
                     .get(format!("{}/upload/query-fragment/{hex_key}", message.uri))
@@ -595,7 +606,7 @@ impl State {
             for member in upload.members.clone() {
                 let hex_key = hex_key.clone();
                 let members = upload.members.clone();
-                tasks.push(self.local.spawn_pinned(|| {
+                tasks.push(self.spawn_local(|| {
                     async move {
                         let _ = Client::new()
                             .post(format!("{}/upload/complete/{hex_key}", member.peer.uri))
@@ -664,7 +675,7 @@ impl State {
                 self.fragment_size * self.inner_k,
             ),
         );
-        for key in &put_state.uploads {
+        for key in &self.put_states[id].uploads {
             self.chunk_store.recover_chunk(key);
             for member in &self.put_uploads[key].members {
                 let peer_uri = member.peer.uri.clone();
@@ -672,7 +683,7 @@ impl State {
                 let key = *key;
                 let index = member.index;
                 let messages = self.messages.clone();
-                self.local.spawn_pinned(move || {
+                self.spawn_local(move || {
                     async move {
                         let mut response = Client::new()
                             .get(format!("{}/download/query-fragment/{hex_key}", peer_uri))
@@ -808,7 +819,7 @@ impl State {
             let hex_key = hex_key.clone();
             let messages = self.messages.clone();
             let key = *key;
-            self.local.spawn_pinned(move || {
+            self.spawn_local(move || {
                 async move {
                     let fragment = Client::new()
                         .get(format!(

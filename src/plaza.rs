@@ -126,7 +126,7 @@ impl<S> State<S> {
         }
     }
 
-    pub fn spawn<P>(
+    pub fn create<P>(
         expect_number: usize,
         shared: S,
         stop: mpsc::UnboundedSender<()>,
