@@ -204,13 +204,11 @@ async fn main() {
 
     println!("READY");
     server.await.unwrap();
-    println!("EXIT");
 
     app_handle.await.unwrap();
     tokio::fs::remove_dir_all(&chunk_path).await.unwrap();
     leave_network(&cli, run.join_id).await;
-    println!("leaved");
-    // spawn_blocking(common::shutdown_tracing).await.unwrap();
+    spawn_blocking(common::shutdown_tracing).await.unwrap();
 }
 
 // #[instrument(skip_all, fields(peer = common::hex_string(&peer.id)))]
@@ -267,15 +265,12 @@ async fn join_network(peer: &Peer, cli: &Cli) -> Option<ReadyRun> {
 }
 
 async fn leave_network(cli: &Cli, join_id: u32) {
-    let client = Client::new();
-    println!("post leave");
-    let response = client
+    let response = Client::new()
         .post(format!("{}/leave/{join_id}", cli.plaza.as_ref().unwrap()))
         .trace_request()
         .send()
         .await
         .unwrap();
-    println!("{response:?}");
     assert_eq!(response.status(), StatusCode::OK);
 }
 
