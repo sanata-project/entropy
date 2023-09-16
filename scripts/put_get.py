@@ -51,15 +51,15 @@ async def put_get(peer):
         print(f"{peer},put,{latency}")
         # await asyncio.sleep(10)  # TODO
 
-        # await session.post(f"{peer}/benchmark/get/{put_id}")
-        # while True:
-        #     await asyncio.sleep(1)
-        #     async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
-        #         result = await resp.json()
-        #         if result["get_end"]:
-        #             break
-        # latency = to_timestamp(result["get_end"]) - to_timestamp(result["get_start"])
-        # print(f"{peer},get,{latency}")
+        await session.post(f"{peer}/benchmark/get/{put_id}")
+        while True:
+            await asyncio.sleep(1)
+            async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
+                result = await resp.json()
+                if result["get_end"]:
+                    break
+        latency = to_timestamp(result["get_end"]) - to_timestamp(result["get_start"])
+        print(f"{peer},get,{latency}")
 
 
 async def operation(peers=None):

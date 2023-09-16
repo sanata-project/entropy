@@ -476,28 +476,25 @@ impl State {
         let local_peer = self.local_peer.clone();
         let messages = self.messages.clone();
         let key = *key;
-        self.spawn_local(move || {
-            async move {
-                let task = async move {
-                    let response = Client::new()
-                        .post(format!("{}/upload/invite/{hex_key}/{index}", peer_uri))
-                        .trace_request()
-                        .send_json(&local_peer)
-                        .await
-                        .ok()?;
-                    if response.status() == StatusCode::OK {
-                        Some(())
-                    } else {
-                        None
-                    }
-                };
-                if task.with_current_context().await.is_none() {
-                    if let Some(messages) = messages.upgrade() {
-                        let _ = messages.send(AppCommand::UploadExtraInvite(key).into());
-                    }
+        self.spawn_local(move || async move {
+            let task = async move {
+                let response = Client::new()
+                    .post(format!("{}/upload/invite/{hex_key}/{index}", peer_uri))
+                    .trace_request()
+                    .send_json(&local_peer)
+                    .await
+                    .ok()?;
+                if response.status() == StatusCode::OK {
+                    Some(())
+                } else {
+                    None
+                }
+            };
+            if task.with_current_context().await.is_none() {
+                if let Some(messages) = messages.upgrade() {
+                    let _ = messages.send(AppCommand::UploadExtraInvite(key).into());
                 }
             }
-            .with_current_context()
         });
     }
 
@@ -558,25 +555,22 @@ impl State {
         let hex_key = hex_string(key);
         let messages = self.messages.clone();
         let key = *key;
-        self.spawn_local(move || {
-            async move {
-                let mut response = Client::new()
-                    .get(format!("{}/upload/query-fragment/{hex_key}", message.uri))
-                    .trace_request()
-                    .send_json(&local_member)
-                    .await
-                    .ok()?;
-                if response.status() == StatusCode::NOT_FOUND {
-                    return None;
-                }
-                let fragment = response.body().await.ok()?;
-                messages
-                    .upgrade()?
-                    .send(AppCommand::AcceptUploadFragment(key, fragment).into())
-                    .ok()?;
-                Some(())
+        self.spawn_local(move || async move {
+            let mut response = Client::new()
+                .get(format!("{}/upload/query-fragment/{hex_key}", message.uri))
+                .trace_request()
+                .send_json(&local_member)
+                .await
+                .ok()?;
+            if response.status() == StatusCode::NOT_FOUND {
+                return None;
             }
-            .with_current_context()
+            let fragment = response.body().await.ok()?;
+            messages
+                .upgrade()?
+                .send(AppCommand::AcceptUploadFragment(key, fragment).into())
+                .ok()?;
+            Some(())
         });
         let _ = result.send(true);
     }
@@ -606,30 +600,24 @@ impl State {
             for member in upload.members.clone() {
                 let hex_key = hex_key.clone();
                 let members = upload.members.clone();
-                tasks.push(self.spawn_local(|| {
-                    async move {
-                        let _ = Client::new()
-                            .post(format!("{}/upload/complete/{hex_key}", member.peer.uri))
-                            .trace_request()
-                            .send_json(&members)
-                            .await;
-                    }
-                    .with_current_context()
+                tasks.push(self.spawn_local(|| async move {
+                    let _ = Client::new()
+                        .post(format!("{}/upload/complete/{hex_key}", member.peer.uri))
+                        .trace_request()
+                        .send_json(&members)
+                        .await;
                 }));
             }
             let messages = self.messages.clone();
             let key = *key;
-            spawn(
-                async move {
-                    for task in tasks {
-                        let _ = task.await;
-                    }
-                    if let Some(messages) = messages.upgrade() {
-                        let _ = messages.send(AppCommand::UploadFinish(key).into());
-                    }
+            spawn(async move {
+                for task in tasks {
+                    let _ = task.await;
                 }
-                .with_current_context(),
-            );
+                if let Some(messages) = messages.upgrade() {
+                    let _ = messages.send(AppCommand::UploadFinish(key).into());
+                }
+            });
         }
     }
 
@@ -683,25 +671,22 @@ impl State {
                 let key = *key;
                 let index = member.index;
                 let messages = self.messages.clone();
-                self.spawn_local(move || {
-                    async move {
-                        let mut response = Client::new()
-                            .get(format!("{}/download/query-fragment/{hex_key}", peer_uri))
-                            .trace_request()
-                            .send()
-                            .await
-                            .ok()?;
-                        if response.status() != StatusCode::OK {
-                            return None;
-                        }
-                        let fragment = response.body().await.ok()?;
-                        messages
-                            .upgrade()?
-                            .send(AppCommand::AcceptDownloadFragment(key, index, fragment).into())
-                            .ok()?;
-                        Some(())
+                self.spawn_local(move || async move {
+                    let mut response = Client::new()
+                        .get(format!("{}/download/query-fragment/{hex_key}", peer_uri))
+                        .trace_request()
+                        .send()
+                        .await
+                        .ok()?;
+                    if response.status() != StatusCode::OK {
+                        return None;
                     }
-                    .with_current_context()
+                    let fragment = response.body().await.ok()?;
+                    messages
+                        .upgrade()?
+                        .send(AppCommand::AcceptDownloadFragment(key, index, fragment).into())
+                        .ok()?;
+                    Some(())
                 });
             }
         }
@@ -819,27 +804,24 @@ impl State {
             let hex_key = hex_key.clone();
             let messages = self.messages.clone();
             let key = *key;
-            self.spawn_local(move || {
-                async move {
-                    let fragment = Client::new()
-                        .get(format!(
-                            "{}/repair/query-fragment/{hex_key}",
-                            member.peer.uri
-                        ))
-                        .trace_request()
-                        .send_json(&local_member)
-                        .await
-                        .ok()?
-                        .body()
-                        .await
-                        .ok()?;
-                    messages
-                        .upgrade()?
-                        .send(AppCommand::AcceptRepairFragment(key, member.index, fragment).into())
-                        .ok()?;
-                    Some(())
-                }
-                .with_current_context()
+            self.spawn_local(move || async move {
+                let fragment = Client::new()
+                    .get(format!(
+                        "{}/repair/query-fragment/{hex_key}",
+                        member.peer.uri
+                    ))
+                    .trace_request()
+                    .send_json(&local_member)
+                    .await
+                    .ok()?
+                    .body()
+                    .await
+                    .ok()?;
+                messages
+                    .upgrade()?
+                    .send(AppCommand::AcceptRepairFragment(key, member.index, fragment).into())
+                    .ok()?;
+                Some(())
             });
         }
     }
