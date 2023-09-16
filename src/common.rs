@@ -19,10 +19,8 @@ pub fn setup_tracing(pairs: impl IntoIterator<Item = KeyValue>) {
         .init();
 }
 
-pub async fn shutdown_tracing() {
-    tokio::task::spawn_blocking(opentelemetry::global::shutdown_tracer_provider)
-        .await
-        .unwrap()
+pub fn shutdown_tracing() {
+    opentelemetry::global::shutdown_tracer_provider()
 }
 
 // i know there's `hex` and `itertools` in the wild, just want to avoid

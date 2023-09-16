@@ -49,7 +49,7 @@ async def put_get(peer):
                     break
         latency = to_timestamp(result["put_end"]) - to_timestamp(result["put_start"])
         print(f"{peer},put,{latency}")
-        await asyncio.sleep(10)  # TODO
+        # await asyncio.sleep(10)  # TODO
 
         await session.post(f"{peer}/benchmark/get/{put_id}")
         while True:

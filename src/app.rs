@@ -23,6 +23,7 @@ use sha2::{Digest, Sha256};
 use tokio::{
     spawn,
     sync::{mpsc, oneshot},
+    task::JoinHandle,
 };
 use tokio_util::task::LocalPoolHandle;
 use tracing::{info, instrument};
@@ -295,7 +296,7 @@ struct PutState {
 }
 
 impl State {
-    pub fn spawn(
+    pub fn create(
         local_peer: Peer,
         local_secret: SigningKey,
         fragment_size: u32,
@@ -397,6 +398,15 @@ impl State {
             .service(benchmark_get);
     }
 
+    fn spawn_local<F: Future<Output = T> + 'static, T: Send + 'static>(
+        &self,
+        create: impl FnOnce() -> F + Send + 'static,
+    ) -> JoinHandle<T> {
+        let context = Context::current();
+        self.local
+            .spawn_pinned(move || create().with_context(context))
+    }
+
     #[instrument(skip(self))]
     fn handle_put(&mut self, result: oneshot::Sender<usize>) {
         if let Some(put_state) = self.put_states.last() {
@@ -427,6 +437,7 @@ impl State {
             let messages = self.messages.clone();
             spawn(
                 async move {
+                    let _entered = tracing::info_span!("encode chunk", outer_index).entered();
                     let mut chunk = vec![0; (fragment_size * inner_k) as _];
                     encoder.encode(outer_index, &mut chunk).unwrap();
                     if let Some(messages) = messages.upgrade() {
@@ -465,28 +476,25 @@ impl State {
         let local_peer = self.local_peer.clone();
         let messages = self.messages.clone();
         let key = *key;
-        self.local.spawn_pinned(move || {
-            async move {
-                let task = async move {
-                    let response = Client::new()
-                        .post(format!("{}/upload/invite/{hex_key}/{index}", peer_uri))
-                        .trace_request()
-                        .send_json(&local_peer)
-                        .await
-                        .ok()?;
-                    if response.status() == StatusCode::OK {
-                        Some(())
-                    } else {
-                        None
-                    }
-                };
-                if task.with_current_context().await.is_none() {
-                    if let Some(messages) = messages.upgrade() {
-                        let _ = messages.send(AppCommand::UploadExtraInvite(key).into());
-                    }
+        self.spawn_local(move || async move {
+            let task = async move {
+                let response = Client::new()
+                    .post(format!("{}/upload/invite/{hex_key}/{index}", peer_uri))
+                    .trace_request()
+                    .send_json(&local_peer)
+                    .await
+                    .ok()?;
+                if response.status() == StatusCode::OK {
+                    Some(())
+                } else {
+                    None
+                }
+            };
+            if task.with_current_context().await.is_none() {
+                if let Some(messages) = messages.upgrade() {
+                    let _ = messages.send(AppCommand::UploadExtraInvite(key).into());
                 }
             }
-            .with_current_context()
         });
     }
 
@@ -547,25 +555,22 @@ impl State {
         let hex_key = hex_string(key);
         let messages = self.messages.clone();
         let key = *key;
-        self.local.spawn_pinned(move || {
-            async move {
-                let mut response = Client::new()
-                    .get(format!("{}/upload/query-fragment/{hex_key}", message.uri))
-                    .trace_request()
-                    .send_json(&local_member)
-                    .await
-                    .ok()?;
-                if response.status() == StatusCode::NOT_FOUND {
-                    return None;
-                }
-                let fragment = response.body().await.ok()?;
-                messages
-                    .upgrade()?
-                    .send(AppCommand::AcceptUploadFragment(key, fragment).into())
-                    .ok()?;
-                Some(())
+        self.spawn_local(move || async move {
+            let mut response = Client::new()
+                .get(format!("{}/upload/query-fragment/{hex_key}", message.uri))
+                .trace_request()
+                .send_json(&local_member)
+                .await
+                .ok()?;
+            if response.status() == StatusCode::NOT_FOUND {
+                return None;
             }
-            .with_current_context()
+            let fragment = response.body().await.ok()?;
+            messages
+                .upgrade()?
+                .send(AppCommand::AcceptUploadFragment(key, fragment).into())
+                .ok()?;
+            Some(())
         });
         let _ = result.send(true);
     }
@@ -595,30 +600,24 @@ impl State {
             for member in upload.members.clone() {
                 let hex_key = hex_key.clone();
                 let members = upload.members.clone();
-                tasks.push(self.local.spawn_pinned(|| {
-                    async move {
-                        let _ = Client::new()
-                            .post(format!("{}/upload/complete/{hex_key}", member.peer.uri))
-                            .trace_request()
-                            .send_json(&members)
-                            .await;
-                    }
-                    .with_current_context()
+                tasks.push(self.spawn_local(|| async move {
+                    let _ = Client::new()
+                        .post(format!("{}/upload/complete/{hex_key}", member.peer.uri))
+                        .trace_request()
+                        .send_json(&members)
+                        .await;
                 }));
             }
             let messages = self.messages.clone();
             let key = *key;
-            spawn(
-                async move {
-                    for task in tasks {
-                        let _ = task.await;
-                    }
-                    if let Some(messages) = messages.upgrade() {
-                        let _ = messages.send(AppCommand::UploadFinish(key).into());
-                    }
+            spawn(async move {
+                for task in tasks {
+                    let _ = task.await;
                 }
-                .with_current_context(),
-            );
+                if let Some(messages) = messages.upgrade() {
+                    let _ = messages.send(AppCommand::UploadFinish(key).into());
+                }
+            });
         }
     }
 
@@ -664,7 +663,7 @@ impl State {
                 self.fragment_size * self.inner_k,
             ),
         );
-        for key in &put_state.uploads {
+        for key in &self.put_states[id].uploads {
             self.chunk_store.recover_chunk(key);
             for member in &self.put_uploads[key].members {
                 let peer_uri = member.peer.uri.clone();
@@ -672,25 +671,22 @@ impl State {
                 let key = *key;
                 let index = member.index;
                 let messages = self.messages.clone();
-                self.local.spawn_pinned(move || {
-                    async move {
-                        let mut response = Client::new()
-                            .get(format!("{}/download/query-fragment/{hex_key}", peer_uri))
-                            .trace_request()
-                            .send()
-                            .await
-                            .ok()?;
-                        if response.status() != StatusCode::OK {
-                            return None;
-                        }
-                        let fragment = response.body().await.ok()?;
-                        messages
-                            .upgrade()?
-                            .send(AppCommand::AcceptDownloadFragment(key, index, fragment).into())
-                            .ok()?;
-                        Some(())
+                self.spawn_local(move || async move {
+                    let mut response = Client::new()
+                        .get(format!("{}/download/query-fragment/{hex_key}", peer_uri))
+                        .trace_request()
+                        .send()
+                        .await
+                        .ok()?;
+                    if response.status() != StatusCode::OK {
+                        return None;
                     }
-                    .with_current_context()
+                    let fragment = response.body().await.ok()?;
+                    messages
+                        .upgrade()?
+                        .send(AppCommand::AcceptDownloadFragment(key, index, fragment).into())
+                        .ok()?;
+                    Some(())
                 });
             }
         }
@@ -808,27 +804,24 @@ impl State {
             let hex_key = hex_key.clone();
             let messages = self.messages.clone();
             let key = *key;
-            self.local.spawn_pinned(move || {
-                async move {
-                    let fragment = Client::new()
-                        .get(format!(
-                            "{}/repair/query-fragment/{hex_key}",
-                            member.peer.uri
-                        ))
-                        .trace_request()
-                        .send_json(&local_member)
-                        .await
-                        .ok()?
-                        .body()
-                        .await
-                        .ok()?;
-                    messages
-                        .upgrade()?
-                        .send(AppCommand::AcceptRepairFragment(key, member.index, fragment).into())
-                        .ok()?;
-                    Some(())
-                }
-                .with_current_context()
+            self.spawn_local(move || async move {
+                let fragment = Client::new()
+                    .get(format!(
+                        "{}/repair/query-fragment/{hex_key}",
+                        member.peer.uri
+                    ))
+                    .trace_request()
+                    .send_json(&local_member)
+                    .await
+                    .ok()?
+                    .body()
+                    .await
+                    .ok()?;
+                messages
+                    .upgrade()?
+                    .send(AppCommand::AcceptRepairFragment(key, member.index, fragment).into())
+                    .ok()?;
+                Some(())
             });
         }
     }
