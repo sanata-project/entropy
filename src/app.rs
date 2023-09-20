@@ -346,6 +346,7 @@ impl State {
         outer_k: u32,
         peer_store: peer::Store,
         chunk_store: chunk::Store,
+        local: LocalPoolHandle,
     ) -> (
         impl Future<Output = Self>,
         impl FnOnce(&mut ServiceConfig) + Clone,
@@ -366,7 +367,7 @@ impl State {
             put_uploads: Default::default(),
             get_recovers: Default::default(),
             messages: messages.0.downgrade(),
-            local: LocalPoolHandle::new(1),
+            local,
         };
         let run_state = async move {
             state.run(messages.1).await;
@@ -463,8 +464,12 @@ impl State {
         }
 
         let id = self.put_states.len();
+        let _ = result.send(id);
+
         let mut object = vec![0; (self.fragment_size * self.inner_k * self.outer_k) as _];
-        thread_rng().fill_bytes(&mut object);
+        tracing::info_span!("generate object").in_scope(|| {
+            thread_rng().fill_bytes(&mut object);
+        });
         self.put_states.push(PutState {
             key: Sha256::digest(&object).into(),
             uploads: Default::default(),
@@ -473,10 +478,12 @@ impl State {
             get_start: None,
             get_end: None,
         });
-        let encoder = Arc::new(WirehairEncoder::new(
-            object,
-            self.fragment_size * self.inner_k,
-        ));
+        let encoder = tracing::info_span!("create encoder").in_scope(|| {
+            Arc::new(WirehairEncoder::new(
+                object,
+                self.fragment_size * self.inner_k,
+            ))
+        });
         for outer_index in 0..self.outer_n {
             let encoder = encoder.clone();
             let fragment_size = self.fragment_size;
@@ -484,23 +491,25 @@ impl State {
             let messages = self.messages.clone();
             spawn(
                 async move {
-                    let _entered = tracing::info_span!("encode chunk", outer_index).entered();
                     let mut chunk = vec![0; (fragment_size * inner_k) as _];
-                    encoder.encode(outer_index, &mut chunk).unwrap();
-                    if let Some(messages) = messages.upgrade() {
-                        let _ =
-                            messages.send(AppCommand::UploadChunk(id, outer_index, chunk).into());
-                    }
+                    tracing::info_span!("encode chunk", outer_index).in_scope(|| {
+                        encoder.encode(outer_index, &mut chunk).unwrap();
+                    });
+                    messages
+                        .upgrade()?
+                        .send(AppCommand::UploadChunk(id, outer_index, chunk).into())
+                        .ok()?;
+                    Some(())
                 }
                 .with_current_context(),
             );
         }
-        let _ = result.send(id);
     }
 
     #[instrument(skip(self))]
     fn handle_upload_chunk(&mut self, id: usize, index: u32, chunk: Vec<u8>) {
-        let key = self.chunk_store.upload_chunk(chunk);
+        let key = tracing::info_span!("create upload chunk")
+            .in_scope(|| self.chunk_store.upload_chunk(chunk));
         self.put_uploads.insert(
             key,
             UploadChunkState {
@@ -623,7 +632,7 @@ impl State {
         let hex_key = hex_string(key);
         spawn(
             async move {
-                let fragment = task.await;
+                let fragment = task.with_current_context().await;
                 Self::spawn_local(local, move || async move {
                     Client::new()
                         .post(format!("{uri}/upload/fragment/{hex_key}"))
@@ -738,6 +747,8 @@ impl State {
         );
         for key in &self.put_states[id].uploads {
             self.chunk_store.recover_chunk(key);
+        }
+        for key in &self.put_states[id].uploads {
             for member in &self.put_uploads[key].members {
                 let peer_uri = member.peer.uri.clone();
                 let hex_key = hex_string(key);
@@ -767,9 +778,11 @@ impl State {
         let index = chunk_state.local_index;
         spawn(
             async move {
-                let fragment = task.await;
+                let fragment = task.with_current_context().await;
                 Self::spawn_local(local, move || async move {
-                    Client::new()
+                    Client::builder()
+                        .disable_timeout()
+                        .finish()
                         .post(format!("{}/download/fragment/{hex_key}/{index}", peer.uri))
                         .trace_request()
                         .send_body(fragment)
@@ -798,7 +811,7 @@ impl State {
         let key = *key;
         spawn(
             async move {
-                let chunk = task.await?;
+                let chunk = task.with_current_context().await?;
                 messages
                     .upgrade()?
                     .send(AppCommand::DownloadFinish(key, chunk).into())
@@ -923,7 +936,7 @@ impl State {
         let hex_key = hex_string(key);
         spawn(
             async move {
-                let fragment = task.await;
+                let fragment = task.with_current_context().await;
                 Self::spawn_local(local, move || async move {
                     Client::new()
                         .post(format!("{}/repair/fragment/{hex_key}", message.peer.uri))
@@ -961,7 +974,7 @@ impl State {
         let key = *key;
         spawn(
             async move {
-                let fragment = task.await?;
+                let fragment = task.with_current_context().await?;
                 messages
                     .upgrade()?
                     .send(AppCommand::RepairRecoverFinish(key, fragment).into())

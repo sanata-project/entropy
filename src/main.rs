@@ -20,6 +20,7 @@ use tokio::{
     task::{spawn_blocking, spawn_local},
     time::{sleep, timeout},
 };
+use tokio_util::task::LocalPoolHandle;
 
 use crate::{
     peer::Peer,
@@ -77,10 +78,10 @@ async fn main() {
             expect_number,
             Shared {
                 fragment_size: 4 << 20,
-                inner_k: 10,
-                inner_n: 10,
-                outer_k: 4,
-                outer_n: 4,
+                inner_k: 4,
+                inner_n: 4,
+                outer_k: 8,
+                outer_n: 10,
                 chunk_root: "/local/cowsay/artifacts/entropy_chunk".into(),
             },
             shutdown.0,
@@ -171,6 +172,7 @@ async fn main() {
         run.shared.outer_k,
         peer_store,
         chunk_store,
+        LocalPoolHandle::new(if cli.benchmark { 32 } else { 1 }),
     );
     let app_runtime = if cli.benchmark {
         tokio::runtime::Builder::new_multi_thread()
