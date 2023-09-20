@@ -77,10 +77,10 @@ async fn main() {
             expect_number,
             Shared {
                 fragment_size: 4 << 20,
-                inner_k: 4,
-                inner_n: 4,
-                outer_k: 10,
-                outer_n: 10,
+                inner_k: 10,
+                inner_n: 10,
+                outer_k: 4,
+                outer_n: 4,
                 chunk_root: "/local/cowsay/artifacts/entropy_chunk".into(),
             },
             shutdown.0,
@@ -190,6 +190,7 @@ async fn main() {
         App::new()
             .wrap(actix_web_opentelemetry::RequestTracing::new())
             .configure(configuration.clone())
+            .app_data(actix_web::web::PayloadConfig::new(8 << 20))
     })
     .workers(1)
     .listen(listener.into_std().unwrap())

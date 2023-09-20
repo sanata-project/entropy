@@ -39,8 +39,10 @@ async def list_peer():
 
 async def put_get(peer):
     async with aiohttp.ClientSession() as session:
+        print('commit put operation')
         async with session.post(f"{peer}/benchmark/put") as resp:
             put_id = await resp.json()
+        print('poll status')
         while True:
             await asyncio.sleep(1)
             async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
@@ -48,10 +50,12 @@ async def put_get(peer):
                 if result["put_end"]:
                     break
         latency = to_timestamp(result["put_end"]) - to_timestamp(result["put_start"])
-        print(f"{peer},put,{latency}")
-        # await asyncio.sleep(10)  # TODO
+        print(f",{peer},put,{latency}")
+        await asyncio.sleep(1)
 
+        print('commit get operation')
         await session.post(f"{peer}/benchmark/get/{put_id}")
+        print('poll status')
         while True:
             await asyncio.sleep(1)
             async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
@@ -59,7 +63,7 @@ async def put_get(peer):
                 if result["get_end"]:
                     break
         latency = to_timestamp(result["get_end"]) - to_timestamp(result["get_start"])
-        print(f"{peer},get,{latency}")
+        print(f",{peer},get,{latency}")
 
 
 async def operation(peers=None):
