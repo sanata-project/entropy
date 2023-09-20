@@ -1,0 +1,1 @@
+ssh ubuntu@$(terraform -chdir=terraform output -raw service)
