@@ -76,7 +76,7 @@ async fn main() {
         let (run, configure) = plaza::State::create::<Participant>(
             expect_number,
             Shared {
-                fragment_size: 100,
+                fragment_size: 4 << 20,
                 inner_k: 4,
                 inner_n: 4,
                 outer_k: 10,

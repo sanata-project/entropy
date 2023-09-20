@@ -25,7 +25,7 @@ use tokio::{
     sync::{mpsc, oneshot},
     task::JoinHandle,
 };
-use tokio_util::task::LocalPoolHandle;
+use tokio_util::{sync::CancellationToken, task::LocalPoolHandle};
 use tracing::{info, instrument};
 use wirehair::{WirehairDecoder, WirehairEncoder};
 
@@ -58,7 +58,7 @@ enum AppCommand {
 
     UploadInvite(ChunkKey, u32, Peer, oneshot::Sender<bool>),
     UploadQueryFragment(ChunkKey, ChunkMember, oneshot::Sender<Option<Vec<u8>>>),
-    UploadComplete(ChunkKey, Vec<ChunkMember>),
+    UploadComplete(ChunkKey, Vec<ChunkMember>, oneshot::Sender<()>),
     DownloadQueryFragment(ChunkKey, oneshot::Sender<Option<Vec<u8>>>),
     RepairInvite(ChunkKey, u32, Vec<ChunkMember>),
     RepairQueryFragment(ChunkKey, ChunkMember, oneshot::Sender<Option<Vec<u8>>>),
@@ -160,8 +160,10 @@ async fn upload_complete(
     path: Path<String>,
     message: Json<Vec<ChunkMember>>,
 ) -> HttpResponse {
-    data.send(AppCommand::UploadComplete(parse_key(&path), message.0).into())
+    let result = oneshot::channel();
+    data.send(AppCommand::UploadComplete(parse_key(&path), message.0, result.0).into())
         .unwrap();
+    result.1.await.unwrap();
     HttpResponse::Ok().finish()
 }
 
@@ -273,7 +275,7 @@ struct ChunkState {
     members: Vec<ChunkMember>,
     pinged: HashSet<u32>,
     indexes: Range<u32>,
-    fragment_present: bool,
+    fragment_present: CancellationToken,
 }
 
 #[derive(Debug, Clone)]
@@ -348,8 +350,8 @@ impl State {
                 AppCommand::UploadQueryFragment(key, message, result) => {
                     self.handle_upload_query_fragment(&key, message, result)
                 }
-                AppCommand::UploadComplete(key, message) => {
-                    self.handle_upload_complete(&key, message)
+                AppCommand::UploadComplete(key, message, result) => {
+                    self.handle_upload_complete(&key, message, result)
                 }
                 AppCommand::RepairInvite(key, index, message) => {
                     self.handle_repair_invite(&key, index, message)
@@ -515,7 +517,7 @@ impl State {
         result: oneshot::Sender<bool>,
     ) {
         let local_member = if let Some(chunk_state) = self.chunk_states.get(key) {
-            if chunk_state.fragment_present {
+            if chunk_state.fragment_present.is_cancelled() {
                 let _ = result.send(true);
                 return;
             }
@@ -531,7 +533,7 @@ impl State {
                 members: Default::default(),
                 pinged: Default::default(),
                 indexes: 0..1, // TODO
-                fragment_present: false,
+                fragment_present: CancellationToken::new(),
             };
             // TODO generate proof
             let local_member = ChunkMember {
@@ -556,7 +558,9 @@ impl State {
         let messages = self.messages.clone();
         let key = *key;
         self.spawn_local(move || async move {
-            let mut response = Client::new()
+            let mut response = Client::builder()
+                .disable_timeout()
+                .finish()
                 .get(format!("{}/upload/query-fragment/{hex_key}", message.uri))
                 .trace_request()
                 .send_json(&local_member)
@@ -601,7 +605,9 @@ impl State {
                 let hex_key = hex_key.clone();
                 let members = upload.members.clone();
                 tasks.push(self.spawn_local(|| async move {
-                    let _ = Client::new()
+                    let _ = Client::builder()
+                        .disable_timeout()
+                        .finish()
                         .post(format!("{}/upload/complete/{hex_key}", member.peer.uri))
                         .trace_request()
                         .send_json(&members)
@@ -624,19 +630,34 @@ impl State {
     #[instrument(skip(self, fragment))]
     fn handle_accept_upload_fragment(&mut self, key: &ChunkKey, fragment: Bytes) {
         let chunk_state = self.chunk_states.get_mut(key).unwrap();
-        chunk_state.fragment_present = true;
-        spawn(
+        let put_fragment =
             self.chunk_store
-                .put_fragment(key, chunk_state.local_index, fragment.to_vec())
-                .with_current_context(),
+                .put_fragment(key, chunk_state.local_index, fragment.to_vec());
+        let fragment_present = chunk_state.fragment_present.clone();
+        spawn(
+            async move {
+                put_fragment.with_current_context().await;
+                fragment_present.cancel();
+            }
+            .with_current_context(),
         );
     }
 
     #[instrument(skip(self))]
-    fn handle_upload_complete(&mut self, key: &ChunkKey, message: Vec<ChunkMember>) {
+    fn handle_upload_complete(
+        &mut self,
+        key: &ChunkKey,
+        message: Vec<ChunkMember>,
+        result: oneshot::Sender<()>,
+    ) {
         let chunk_state = self.chunk_states.get_mut(key).unwrap();
         chunk_state.members = message;
         // TODO index
+        let fragment_present = chunk_state.fragment_present.clone();
+        spawn(async move {
+            fragment_present.cancelled().await;
+            let _ = result.send(());
+        });
     }
 
     #[instrument(skip(self))]
@@ -702,7 +723,7 @@ impl State {
             let _ = result.send(None);
             return;
         };
-        assert!(chunk_state.fragment_present);
+        assert!(chunk_state.fragment_present.is_cancelled());
         let fragment = self.chunk_store.get_fragment(key, chunk_state.local_index);
         spawn(
             async move {
@@ -768,7 +789,7 @@ impl State {
     #[instrument(skip(self, message))]
     fn handle_repair_invite(&mut self, key: &ChunkKey, index: u32, message: Vec<ChunkMember>) {
         let local_member = if let Some(chunk_state) = self.chunk_states.get(key) {
-            if chunk_state.fragment_present {
+            if chunk_state.fragment_present.is_cancelled() {
                 return;
             }
             chunk_state
@@ -783,7 +804,7 @@ impl State {
                 members: message.clone(),
                 pinged: Default::default(),
                 indexes: 0..1, // TODO
-                fragment_present: false,
+                fragment_present: CancellationToken::new(),
             };
             // TODO generate proof
             let local_member = ChunkMember {
@@ -838,7 +859,7 @@ impl State {
             let _ = result.send(None);
             return;
         };
-        assert!(chunk_state.fragment_present);
+        assert!(chunk_state.fragment_present.is_cancelled());
         let fragment = self.chunk_store.get_fragment(key, chunk_state.local_index);
         spawn(
             async move {
@@ -856,7 +877,7 @@ impl State {
     #[instrument(skip(self, fragment))]
     fn handle_accept_fragment(&mut self, key: &ChunkKey, index: u32, fragment: Bytes) {
         let chunk_state = &self.chunk_states[key];
-        if chunk_state.fragment_present {
+        if chunk_state.fragment_present.is_cancelled() {
             //
             return;
         }
@@ -886,11 +907,16 @@ impl State {
     fn handle_recover_finish(&mut self, key: &ChunkKey, fragment: Vec<u8>) {
         self.chunk_store.finish_recover(key);
         let chunk_state = self.chunk_states.get_mut(key).unwrap();
-        chunk_state.fragment_present = true;
+        let put_fragment = self
+            .chunk_store
+            .put_fragment(key, chunk_state.local_index, fragment);
+        let fragment_present = chunk_state.fragment_present.clone();
         spawn(
-            self.chunk_store
-                .put_fragment(key, chunk_state.local_index, fragment)
-                .with_current_context(),
+            async move {
+                put_fragment.with_current_context().await;
+                fragment_present.cancel();
+            }
+            .with_current_context(),
         );
     }
 }
