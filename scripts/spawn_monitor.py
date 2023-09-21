@@ -1,13 +1,14 @@
 import asyncio
 import sys
+import pathlib
 
 ARGV = dict(enumerate(sys.argv))
 HOST = ARGV.get(1, "10.0.0.1")
 # PLAZA = "http://nsl-node1.d2:8080"
 PLAZA = ARGV.get(2, "http://nsl-node1.d2:8080")
 # WORK_DIR = "/local/cowsay/artifacts"
-WORK_DIR = ARGV.get(3, "/local/cowsay/artifacts")
-NUM_PEER = 100
+WORK_DIR = pathlib.Path(__file__).absolute().parent
+NUM_PEER = int(ARGV.get(3, "1"))
 NUM_BENCHMARK_PEER = 1
 
 

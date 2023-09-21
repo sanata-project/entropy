@@ -1,1 +1,1 @@
-curl http://$(terraform -chdir=terraform output -raw service):8080/shutdown -X POST
+curl $(python3 scripts/common.py service)/shutdown -X POST

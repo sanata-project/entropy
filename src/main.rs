@@ -1,4 +1,4 @@
-use std::{future::Future, panic::panic_any, path::PathBuf, time::Duration};
+use std::{env::current_exe, future::Future, panic::panic_any, time::Duration};
 
 use actix_web::{http::StatusCode, App, HttpServer};
 use actix_web_opentelemetry::ClientExt;
@@ -57,7 +57,6 @@ struct Shared {
     inner_n: u32,
     outer_k: u32,
     outer_n: u32,
-    chunk_root: PathBuf,
 }
 
 struct ReadyRun {
@@ -82,7 +81,6 @@ async fn main() {
                 inner_n: 4,
                 outer_k: 8,
                 outer_n: 10,
-                chunk_root: "/home/ubuntu".into(),
             },
             shutdown.0,
         );
@@ -92,7 +90,6 @@ async fn main() {
                 .wrap(actix_web_opentelemetry::RequestTracing::new())
                 .configure(configure.clone())
         })
-        .workers(1)
         .bind((cli.host, 8080))
         .unwrap()
         .run();
@@ -158,7 +155,11 @@ async fn main() {
     )));
     assert_eq!(peer_store.closest_peers(&peer.id, 1)[0].id, peer.id);
 
-    let chunk_path = run.shared.chunk_root.join(common::hex_string(&peer.id));
+    let chunk_path = current_exe()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join(common::hex_string(&peer.id));
     tokio::fs::create_dir_all(&chunk_path).await.unwrap();
     let chunk_store = chunk::Store::new(
         chunk_path.clone(),

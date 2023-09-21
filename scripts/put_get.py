@@ -3,21 +3,14 @@ import aiohttp
 import time
 import sys
 import random
-from subprocess import run, PIPE
+
+from common import SERVICE as PLAZA
+
 
 ARGV = dict(enumerate(sys.argv))
 NUM_OPERATION = int(ARGV.get(1, "1"))
 NUM_CONCURRENT = int(ARGV.get(2, "1"))
 assert NUM_CONCURRENT <= NUM_OPERATION
-
-PLAZA_HOST = run(
-    "terraform -chdir=terraform output -raw service",
-    shell=True,
-    check=True,
-    stdout=PIPE,
-    text=True,
-).stdout
-PLAZA = f"http://{PLAZA_HOST}:8080"
 
 
 def to_timestamp(system_time):
@@ -94,7 +87,7 @@ async def main():
         for _ in done_tasks:
             if num_operation < NUM_OPERATION:
                 num_operation += 1
-                tasks.add(operation())
+                tasks.add(asyncio.create_task(operation()))
 
 
 if __name__ == "__main__":

@@ -52,40 +52,56 @@ module "region-1" {
   providers = {
     aws = aws.ap-east-1
   }
+
+  instance_count = 1
 }
 
-# module "region-2" {
-#   source = "./region"
-#   providers = {
-#     aws = aws.us-west-1
-#   }
-# }
+module "region-2" {
+  source = "./region"
+  providers = {
+    aws = aws.us-west-1
+  }
 
-# module "region-3" {
-#   source = "./region"
-#   providers = {
-#     aws = aws.eu-central-1
-#   }
-# }
+  instance_count = 1
+}
 
-# module "region-4" {
-#   source = "./region"
-#   providers = {
-#     aws = aws.sa-east-1
-#   }
-# }
+module "region-3" {
+  source = "./region"
+  providers = {
+    aws = aws.eu-central-1
+  }
 
-# module "region-5" {
-#   source = "./region"
-#   providers = {
-#     aws = aws.af-south-1
-#   }
-# }
+  instance_count = 1
+}
+
+module "region-4" {
+  source = "./region"
+  providers = {
+    aws = aws.sa-east-1
+  }
+
+  instance_count = 1
+}
+
+module "region-5" {
+  source = "./region"
+  providers = {
+    aws = aws.af-south-1
+  }
+
+  instance_count = 1
+}
 
 output "service" {
   value = module.service.instances[0]
 }
 
 output "hosts" {
-  value = concat(module.region-1.instances)
+  value = concat(
+    module.region-1.instances,
+    module.region-2.instances,
+    module.region-3.instances,
+    module.region-4.instances,
+    module.region-5.instances,
+  )
 }

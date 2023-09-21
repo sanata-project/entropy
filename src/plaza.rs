@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     future::Future,
-    time::{Duration, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 use actix_web::{
@@ -21,6 +21,7 @@ pub struct State<S> {
     activities: BTreeMap<SystemTime, Activity>,
     ready_number: usize,
     assemble_time: Option<SystemTime>,
+    wait_until: Instant,
     shutdown: bool,
     shared: S,
 }
@@ -121,6 +122,7 @@ impl<S> State<S> {
             activities: Default::default(),
             ready_number: expect_number,
             assemble_time: Default::default(),
+            wait_until: Instant::now(),
             shutdown: false,
             shared,
         }
@@ -198,9 +200,11 @@ impl<S> State<S> {
                     } else if self.participants.len() < self.ready_number {
                         to_value(Run::<P, S>::Retry(self.wait_duration())).unwrap()
                     } else {
-                        let assemble_time = *self
-                            .assemble_time
-                            .get_or_insert(SystemTime::now() + self.wait_duration());
+                        let assemble_time = *self.assemble_time.get_or_insert(
+                            SystemTime::now()
+                                + Duration::from_millis(self.ready_number as u64 * 10)
+                                    .max(Duration::from_secs(1)),
+                        );
                         to_value(Run::Ready {
                             participants: Vec::from_iter(self.participants.values()),
                             assemble_time,
@@ -224,10 +228,14 @@ impl<S> State<S> {
         }
     }
 
-    fn wait_duration(&self) -> Duration {
+    fn wait_duration(&mut self) -> Duration {
         // throttle to 100 retry per second
-        Duration::from_millis(self.ready_number as u64 * 10)
+        let base_wait = Duration::from_millis(self.ready_number as u64 * 10)
             // or 1 retry per second per peer if slower
-            .max(Duration::from_secs(1))
+            .max(Duration::from_secs(1));
+        let now = Instant::now();
+        let wait = base_wait.max(self.wait_until + Duration::from_millis(10) - now);
+        self.wait_until = now + wait;
+        wait
     }
 }

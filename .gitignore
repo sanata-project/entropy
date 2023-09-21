@@ -1,5 +1,7 @@
 /target
 
+__pycache__
+
 # Local .terraform directories
 **/.terraform/*
 

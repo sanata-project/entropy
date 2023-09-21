@@ -1,1 +1,1 @@
-ssh ubuntu@$(terraform -chdir=terraform output -raw service) pkill -TERM entropy
+ssh $(python3 scripts/common.py service-host) pkill -TERM entropy

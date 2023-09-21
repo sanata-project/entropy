@@ -1,4 +1,4 @@
-SERVICE=$(terraform -chdir=terraform output -raw service)
+SERVICE=$(python3 scripts/common.py service-host)
 cargo build --profile artifact --bin simple-entropy
-rsync target/artifact/simple-entropy ubuntu@${SERVICE}:entropy
-ssh ubuntu@${SERVICE} OTEL_SDK_DISABLED=true ./entropy ${SERVICE} --plaza-service $1
+rsync target/artifact/simple-entropy ${SERVICE}:entropy
+ssh ${SERVICE} ./entropy ${SERVICE} --plaza-service $(python3 scripts/common.py num-peer)

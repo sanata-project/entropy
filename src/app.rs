@@ -828,7 +828,9 @@ impl State {
         assert!(!upload.recovered);
         upload.recovered = true;
         self.chunk_store.finish_recover(key);
-        let decoder = self.get_recovers.get_mut(&upload.benchmark_id).unwrap();
+        let Some(decoder) = self.get_recovers.get_mut(&upload.benchmark_id) else {
+            return;
+        };
         if decoder.decode(upload.chunk_index, &chunk).unwrap() {
             let decoder = self.get_recovers.remove(&upload.benchmark_id).unwrap();
             let mut object =
@@ -837,6 +839,7 @@ impl State {
                     self.fragment_size as usize * self.inner_k as usize * self.outer_k as usize
                 ];
             decoder.recover(&mut object).unwrap();
+            assert!(self.put_states[upload.benchmark_id].get_end.is_none());
             self.put_states[upload.benchmark_id].get_end = Some(SystemTime::now());
             assert_eq!(
                 Sha256::digest(object),
