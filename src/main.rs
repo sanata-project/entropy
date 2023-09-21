@@ -95,7 +95,9 @@ fn main() {
             .unwrap()
             .lines()
             .map(|line| line.trim())
-            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .filter(|line| {
+                !line.is_empty() && !line.starts_with('#') && !line.starts_with("service")
+            })
             .flat_map(|host| {
                 let host = host.to_string();
                 (0..cli.num_host_peer.unwrap())

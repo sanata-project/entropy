@@ -43,7 +43,7 @@ module "service" {
     aws = aws.ap-east-1
   }
 
-  instance_type  = "c5.4xlarge"
+  instance_type  = "c5.xlarge"
   instance_count = 1
 }
 
@@ -53,7 +53,8 @@ module "region-1" {
     aws = aws.ap-east-1
   }
 
-  instance_count = 30
+  instance_type = "c5.18xlarge"
+  instance_count = 5
 }
 
 module "region-2" {
