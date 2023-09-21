@@ -774,6 +774,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "entropy"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "actix-web-opentelemetry",
+ "awc",
+ "clap",
+ "ed25519-dalek",
+ "opentelemetry",
+ "opentelemetry-jaeger",
+ "opentelemetry-otlp",
+ "rand",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "wirehair",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1732,30 +1756,6 @@ name = "signature"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500"
-
-[[package]]
-name = "simple-entropy"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "actix-web-opentelemetry",
- "awc",
- "clap",
- "ed25519-dalek",
- "opentelemetry",
- "opentelemetry-jaeger",
- "opentelemetry-otlp",
- "rand",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
- "wirehair",
-]
 
 [[package]]
 name = "slab"

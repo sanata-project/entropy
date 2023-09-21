@@ -1,14 +1,15 @@
 import asyncio
 import aiohttp
-import time
 import sys
 import random
+
+from common import NUM_HOST_BENCHMARK_PEER, HOSTS, SERVICE as PLAZA
+
 
 ARGV = dict(enumerate(sys.argv))
 NUM_OPERATION = int(ARGV.get(1, "1"))
 NUM_CONCURRENT = int(ARGV.get(2, "1"))
 assert NUM_CONCURRENT <= NUM_OPERATION
-PLAZA = "http://nsl-node1.d2:8080"
 
 
 def to_timestamp(system_time):
@@ -18,29 +19,20 @@ def to_timestamp(system_time):
     )
 
 
-async def list_peer():
+async def ready():
     async with aiohttp.ClientSession() as session:
-        while True:
-            async with session.get(f"{PLAZA}/run") as resp:
-                run = await resp.json()
-            if "Ready" in run:
-                break
-            await asyncio.sleep(1)
-    peers = [
-        participant["BenchmarkPeer"]["uri"]
-        for participant in run["Ready"]["participants"]
-        if "BenchmarkPeer" in participant
-    ]
-    wait = to_timestamp(run["Ready"]["assemble_time"]) - time.time() + 2
-    if wait > 0:
-        await asyncio.sleep(wait)
-    return peers
+        ready = False
+        while not ready:
+            async with session.get(f"{PLAZA}/ready") as resp:
+                ready = await resp.json()
 
 
 async def put_get(peer):
     async with aiohttp.ClientSession() as session:
+        print("commit put operation")
         async with session.post(f"{peer}/benchmark/put") as resp:
             put_id = await resp.json()
+        print("poll status")
         while True:
             await asyncio.sleep(1)
             async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
@@ -48,10 +40,12 @@ async def put_get(peer):
                 if result["put_end"]:
                     break
         latency = to_timestamp(result["put_end"]) - to_timestamp(result["put_start"])
-        print(f"{peer},put,{latency}")
-        # await asyncio.sleep(10)  # TODO
+        print(f",{peer},put,{latency}")
+        await asyncio.sleep(1)
 
+        print("commit get operation")
         await session.post(f"{peer}/benchmark/get/{put_id}")
+        print("poll status")
         while True:
             await asyncio.sleep(1)
             async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
@@ -59,20 +53,23 @@ async def put_get(peer):
                 if result["get_end"]:
                     break
         latency = to_timestamp(result["get_end"]) - to_timestamp(result["get_start"])
-        print(f"{peer},get,{latency}")
+        print(f",{peer},get,{latency}")
 
 
-async def operation(peers=None):
-    if not peers:
-        peers = await list_peer()
+async def operation(peers):
     await put_get(random.choice(peers))
 
 
 async def main():
-    peers = await list_peer()
+    await ready()
+    peers = [
+        f"http://{host}:{10000 + index}"
+        for host in HOSTS
+        for index in range(NUM_HOST_BENCHMARK_PEER)
+    ]
     tasks = []
     for _ in range(NUM_CONCURRENT):
-        tasks.append(operation(peers))
+        tasks.append(asyncio.create_task(operation(peers)))
     num_operation = NUM_CONCURRENT
     while tasks:
         done_tasks, tasks = await asyncio.wait(
@@ -81,7 +78,7 @@ async def main():
         for _ in done_tasks:
             if num_operation < NUM_OPERATION:
                 num_operation += 1
-                tasks.add(operation())
+                tasks.add(asyncio.create_task(operation()))
 
 
 if __name__ == "__main__":

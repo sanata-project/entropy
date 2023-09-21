@@ -1,10 +1,15 @@
-use opentelemetry::sdk::{trace, Resource};
 use opentelemetry::KeyValue;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
 
 pub fn setup_tracing(pairs: impl IntoIterator<Item = KeyValue>) {
+    if std::env::var("OTEL_SDK_DISABLED") == Ok(String::from("true")) {
+        return;
+    }
+
+    use opentelemetry::sdk::{trace, Resource};
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::EnvFilter;
+
     opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
     let tracer = opentelemetry_otlp::new_pipeline()
         .tracing()
@@ -20,6 +25,10 @@ pub fn setup_tracing(pairs: impl IntoIterator<Item = KeyValue>) {
 }
 
 pub fn shutdown_tracing() {
+    if std::env::var("OTEL_SDK_DISABLED") == Ok(String::from("true")) {
+        return;
+    }
+
     opentelemetry::global::shutdown_tracer_provider()
 }
 

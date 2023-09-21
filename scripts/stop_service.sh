@@ -1,0 +1,1 @@
+ssh $(python3 scripts/common.py SERVICE_HOST) pkill -TERM entropy

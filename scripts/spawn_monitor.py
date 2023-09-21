@@ -1,12 +1,16 @@
 import asyncio
 import sys
+import pathlib
+
+from common import (
+    SERVICE as PLAZA,
+    NUM_HOST_PEER as NUM_PEER,
+    NUM_HOST_BENCHMARK_PEER as NUM_BENCHMARK_PEER,
+)
 
 ARGV = dict(enumerate(sys.argv))
 HOST = ARGV.get(1, "10.0.0.1")
-NUM_PEER = 100
-NUM_BENCHMARK_PEER = 1
-WORK_DIR = "/local/cowsay/artifacts"
-PLAZA = "http://nsl-node1.d2:8080"
+WORK_DIR = pathlib.Path(__file__).absolute().parent
 
 
 async def run_peers():
@@ -15,11 +19,26 @@ async def run_peers():
         command = [
             "RUST_LOG=info",
             "RUST_BACKTRACE=1",
-            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://nsl-node1.d2:4317",
+            # "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://ec2-18-163-41-210.ap-east-1.compute.amazonaws.com:4317",
+            "OTEL_SDK_DISABLED=true",
             f"{WORK_DIR}/entropy",
             HOST,
+            "--port",
+            10000 + index,
             "--plaza",
             PLAZA,
+            "--num-host-peer",
+            NUM_PEER,
+            "--fragment-size",
+            100,
+            # "--inner-k",
+            # 4,
+            # "--inner-n",
+            # 4,
+            "--outer-k",
+            2,
+            "--outer-n",
+            2,
         ]
         if index < NUM_BENCHMARK_PEER:
             command.append("--benchmark")
@@ -27,13 +46,15 @@ async def run_peers():
             f"1>{WORK_DIR}/entropy-{index:03}-output.txt",
             f"2>{WORK_DIR}/entropy-{index:03}-errors.txt",
         ]
-        proc = await asyncio.create_subprocess_shell(" ".join(command))
+        proc = await asyncio.create_subprocess_shell(
+            " ".join(str(item) for item in command)
+        )
 
         async def wait(proc, index):
             code = await proc.wait()
             return code, index
 
-        tasks.append(wait(proc, index))
+        tasks.append(asyncio.create_task(wait(proc, index)))
     active_shutdown = False
     while tasks:
         done_tasks, tasks = await asyncio.wait(
@@ -50,7 +71,7 @@ async def run_peers():
 
 
 async def shutdown_peers():
-    proc = await asyncio.create_subprocess_shell(f"curl -X POST {PLAZA}/shutdown")
+    proc = await asyncio.create_subprocess_shell(f"curl -s -X POST {PLAZA}/shutdown")
     await proc.wait()
 
 

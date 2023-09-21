@@ -1,6 +1,7 @@
 use std::{cmp::Reverse, convert::identity};
 
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 
 pub type PeerId = [u8; 32];
 
@@ -9,6 +10,21 @@ pub struct Peer {
     pub id: PeerId,
     pub key: ed25519_dalek::VerifyingKey,
     pub uri: String,
+}
+
+impl Peer {
+    pub fn signing_key(uri: &str) -> ed25519_dalek::SigningKey {
+        ed25519_dalek::SigningKey::from(&sha2::Sha256::digest(uri).into())
+    }
+
+    pub fn new(uri: String) -> Self {
+        let key = Self::signing_key(&uri).verifying_key();
+        Self {
+            key,
+            id: sha2::Sha256::digest(key).into(),
+            uri,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -73,9 +89,7 @@ mod tests {
             // println!("{:?}", peer as *const _);
             let closest = store.closest_peers(&peer.id, 10);
             assert_eq!(closest.len(), 10);
-            assert!(closest
-                .into_iter()
-                .any(|p| std::ptr::eq(p, peer)));
+            assert!(closest.into_iter().any(|p| std::ptr::eq(p, peer)));
         }
     }
 }

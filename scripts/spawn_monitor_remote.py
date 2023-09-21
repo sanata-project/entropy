@@ -1,36 +1,32 @@
 import asyncio
 import sys
 
+from common import HOSTS, WORK_DIR
+
 ARGV = dict(enumerate(sys.argv))
-# HOSTS = ["10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"]
-# SSH_HOSTS = ["nsl-node1.d2", "nsl-node2.d2", "nsl-node3.d2", "nsl-node4.d2"]
-HOSTS = ["10.0.0.1"]
-SSH_HOSTS = ["nsl-node1.d2"]
-WORK_DIR = "/local/cowsay/artifacts"
-ARTIFACT = "./target/artifact/simple-entropy"
-SPAWN_MONITER = "./scripts/spawn_monitor.py"
+ARTIFACT = "./target/artifact/entropy"
+SCRIPT_SPAWN_MONITER = "./scripts/spawn_monitor.py"
+SCRIPT_COMMON = "./scripts/common.py"
+HOSTS_TXT = "./scripts/hosts.txt"
 
 
 async def upload_artifact():
     tasks = []
-    for host in set(SSH_HOSTS):
-        proc = await asyncio.create_subprocess_shell(
-            f"rsync {ARTIFACT} {host}:{WORK_DIR}/entropy"
-        )
-        tasks.append(proc.wait())
-        proc = await asyncio.create_subprocess_shell(
-            f"rsync {SPAWN_MONITER} {host}:{WORK_DIR}/spawn_monitor.py"
-        )
-        tasks.append(proc.wait())
+    for host in set(HOSTS):
+        for path in (ARTIFACT, SCRIPT_SPAWN_MONITER, SCRIPT_COMMON, HOSTS_TXT):
+            proc = await asyncio.create_subprocess_shell(
+                f"rsync {path} {host}:{WORK_DIR}"
+            )
+            tasks.append(proc.wait())
     codes = await asyncio.gather(*tasks)
     assert all(result == 0 for result in codes)
 
 
 async def run_remotes():
     tasks = []
-    for ssh_host, host in zip(SSH_HOSTS, HOSTS):
+    for host in HOSTS:
         proc = await asyncio.create_subprocess_shell(
-            f"ssh {ssh_host} python3 {WORK_DIR}/spawn_monitor.py {host}"
+            f"ssh {host} python3 {WORK_DIR}/spawn_monitor.py {host}"
         )
         tasks.append(proc.wait())
     codes = await asyncio.gather(*tasks)
