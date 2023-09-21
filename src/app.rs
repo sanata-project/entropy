@@ -21,7 +21,6 @@ use rand::{thread_rng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{
-    spawn,
     sync::{mpsc, oneshot},
     task::JoinHandle,
 };
@@ -481,20 +480,17 @@ impl State {
             let fragment_size = self.fragment_size;
             let inner_k = self.inner_k;
             let messages = self.messages.clone();
-            spawn(
-                async move {
-                    let mut chunk = vec![0; (fragment_size * inner_k) as _];
-                    tracing::info_span!("encode chunk", outer_index).in_scope(|| {
-                        encoder.encode(outer_index, &mut chunk).unwrap();
-                    });
-                    messages
-                        .upgrade()?
-                        .send(AppCommand::UploadChunk(id, outer_index, chunk).into())
-                        .ok()?;
-                    Some(())
-                }
-                .with_current_context(),
-            );
+            Self::spawn(self.local.clone(), move || async move {
+                let mut chunk = vec![0; (fragment_size * inner_k) as _];
+                tracing::info_span!("encode chunk", outer_index).in_scope(|| {
+                    encoder.encode(outer_index, &mut chunk).unwrap();
+                });
+                messages
+                    .upgrade()?
+                    .send(AppCommand::UploadChunk(id, outer_index, chunk).into())
+                    .ok()?;
+                Some(())
+            });
         }
     }
 
@@ -619,24 +615,18 @@ impl State {
         // TODO verify proof
         // TODO deduplicate
         let task = self.chunk_store.generate_fragment(key, message.index);
-        let local = self.local.clone();
         let uri = message.peer.uri.clone();
         let hex_key = hex_string(key);
-        spawn(
-            async move {
-                let fragment = task.with_current_context().await;
-                Self::spawn(local, move || async move {
-                    Client::new()
-                        .post(format!("{uri}/upload/fragment/{hex_key}"))
-                        .trace_request()
-                        .send_body(fragment)
-                        .await
-                        .ok()?;
-                    Some(())
-                });
-            }
-            .with_current_context(),
-        );
+        Self::spawn(self.local.clone(), || async move {
+            let fragment = task.with_current_context().await;
+            Client::new()
+                .post(format!("{uri}/upload/fragment/{hex_key}"))
+                .trace_request()
+                .send_body(fragment)
+                .await
+                .ok()?;
+            Some(())
+        });
 
         upload.members.push(message);
         if upload.members.len() == self.inner_n as usize {
@@ -666,13 +656,10 @@ impl State {
             self.chunk_store
                 .put_fragment(key, chunk_state.local_index, fragment.to_vec());
         let fragment_present = chunk_state.fragment_present.clone();
-        spawn(
-            async move {
-                put_fragment.with_current_context().await;
-                fragment_present.cancel();
-            }
-            .with_current_context(),
-        );
+        Self::spawn(self.local.clone(), || async move {
+            put_fragment.with_current_context().await;
+            fragment_present.cancel();
+        });
     }
 
     #[instrument(skip(self))]
@@ -765,26 +752,20 @@ impl State {
         };
         assert!(chunk_state.fragment_present.is_cancelled());
         let task = self.chunk_store.get_fragment(key, chunk_state.local_index);
-        let local = self.local.clone();
         let hex_key = hex_string(key);
         let index = chunk_state.local_index;
-        spawn(
-            async move {
-                let fragment = task.with_current_context().await;
-                Self::spawn(local, move || async move {
-                    Client::builder()
-                        .disable_timeout()
-                        .finish()
-                        .post(format!("{}/download/fragment/{hex_key}/{index}", peer.uri))
-                        .trace_request()
-                        .send_body(fragment)
-                        .await
-                        .ok()?;
-                    Some(())
-                });
-            }
-            .with_current_context(),
-        );
+        Self::spawn(self.local.clone(), move || async move {
+            let fragment = task.with_current_context().await;
+            Client::builder()
+                .disable_timeout()
+                .finish()
+                .post(format!("{}/download/fragment/{hex_key}/{index}", peer.uri))
+                .trace_request()
+                .send_body(fragment)
+                .await
+                .ok()?;
+            Some(())
+        });
     }
 
     #[instrument(skip(self, fragment))]
@@ -801,17 +782,14 @@ impl State {
             .recover_with_fragment(key, index, fragment.to_vec());
         let messages = self.messages.clone();
         let key = *key;
-        spawn(
-            async move {
-                let chunk = task.with_current_context().await?;
-                messages
-                    .upgrade()?
-                    .send(AppCommand::DownloadFinish(key, chunk).into())
-                    .ok()?;
-                Some(())
-            }
-            .with_current_context(),
-        );
+        Self::spawn(self.local.clone(), move || async move {
+            let chunk = task.with_current_context().await?;
+            messages
+                .upgrade()?
+                .send(AppCommand::DownloadFinish(key, chunk).into())
+                .ok()?;
+            Some(())
+        });
     }
 
     #[instrument(skip(self, chunk))]
@@ -927,23 +905,17 @@ impl State {
         };
         assert!(chunk_state.fragment_present.is_cancelled());
         let task = self.chunk_store.get_fragment(key, chunk_state.local_index);
-        let local = self.local.clone();
         let hex_key = hex_string(key);
-        spawn(
-            async move {
-                let fragment = task.with_current_context().await;
-                Self::spawn(local, move || async move {
-                    Client::new()
-                        .post(format!("{}/repair/fragment/{hex_key}", message.peer.uri))
-                        .trace_request()
-                        .send_body(fragment)
-                        .await
-                        .ok()?;
-                    Some(())
-                });
-            }
-            .with_current_context(),
-        );
+        Self::spawn(self.local.clone(), || async move {
+            let fragment = task.with_current_context().await;
+            Client::new()
+                .post(format!("{}/repair/fragment/{hex_key}", message.peer.uri))
+                .trace_request()
+                .send_body(fragment)
+                .await
+                .ok()?;
+            Some(())
+        });
     }
 
     #[instrument(skip(self, message))]
@@ -967,17 +939,14 @@ impl State {
         );
         let messages = self.messages.clone();
         let key = *key;
-        spawn(
-            async move {
-                let fragment = task.with_current_context().await?;
-                messages
-                    .upgrade()?
-                    .send(AppCommand::RepairRecoverFinish(key, fragment).into())
-                    .ok()?;
-                Some(())
-            }
-            .with_current_context(),
-        );
+        Self::spawn(self.local.clone(), move || async move {
+            let fragment = task.with_current_context().await?;
+            messages
+                .upgrade()?
+                .send(AppCommand::RepairRecoverFinish(key, fragment).into())
+                .ok()?;
+            Some(())
+        });
     }
 
     #[instrument(skip(self, fragment))]
@@ -988,12 +957,9 @@ impl State {
             .chunk_store
             .put_fragment(key, chunk_state.local_index, fragment);
         let fragment_present = chunk_state.fragment_present.clone();
-        spawn(
-            async move {
-                put_fragment.with_current_context().await;
-                fragment_present.cancel();
-            }
-            .with_current_context(),
-        );
+        Self::spawn(self.local.clone(), || async move {
+            put_fragment.with_current_context().await;
+            fragment_present.cancel();
+        });
     }
 }

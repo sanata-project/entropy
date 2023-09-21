@@ -76,7 +76,9 @@ fn main() {
                     server_handle.stop(true).await;
                 });
                 server.await.unwrap();
-                tokio::task::spawn_blocking(common::shutdown_tracing);
+                tokio::task::spawn_blocking(common::shutdown_tracing)
+                    .await
+                    .unwrap();
             });
         return;
     }
@@ -173,9 +175,10 @@ fn main() {
                 server_handle.stop(true).await;
             });
             state.run(messages.1).await;
-            println!("state exit");
 
-            tokio::task::spawn_blocking(common::shutdown_tracing);
+            tokio::task::spawn_blocking(common::shutdown_tracing)
+                .await
+                .unwrap();
         });
 
     std::fs::remove_dir_all(&chunk_path).unwrap();

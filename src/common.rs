@@ -1,6 +1,10 @@
 use opentelemetry::KeyValue;
 
 pub fn setup_tracing(pairs: impl IntoIterator<Item = KeyValue>) {
+    if std::env::var("OTEL_SDK_DISABLED") == Ok(String::from("true")) {
+        return;
+    }
+
     use opentelemetry::sdk::{trace, Resource};
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
@@ -21,6 +25,10 @@ pub fn setup_tracing(pairs: impl IntoIterator<Item = KeyValue>) {
 }
 
 pub fn shutdown_tracing() {
+    if std::env::var("OTEL_SDK_DISABLED") == Ok(String::from("true")) {
+        return;
+    }
+
     opentelemetry::global::shutdown_tracer_provider()
 }
 
