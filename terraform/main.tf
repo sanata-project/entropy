@@ -43,7 +43,7 @@ module "service" {
     aws = aws.ap-east-1
   }
 
-  instance_type  = "t3.micro"
+  instance_type  = "c5.4xlarge"
   instance_count = 1
 }
 
@@ -53,7 +53,7 @@ module "region-1" {
     aws = aws.ap-east-1
   }
 
-  instance_count = 1
+  instance_count = 30
 }
 
 module "region-2" {
@@ -62,7 +62,7 @@ module "region-2" {
     aws = aws.us-west-1
   }
 
-  instance_count = 1
+  instance_count = 0
 }
 
 module "region-3" {
@@ -71,7 +71,7 @@ module "region-3" {
     aws = aws.eu-central-1
   }
 
-  instance_count = 1
+  instance_count = 0
 }
 
 module "region-4" {
@@ -80,7 +80,7 @@ module "region-4" {
     aws = aws.sa-east-1
   }
 
-  instance_count = 1
+  instance_count = 0
 }
 
 module "region-5" {
@@ -89,7 +89,7 @@ module "region-5" {
     aws = aws.af-south-1
   }
 
-  instance_count = 1
+  instance_count = 0
 }
 
 output "service" {

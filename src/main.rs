@@ -1,4 +1,4 @@
-use std::{env::current_exe, future::Future, panic::panic_any, time::Duration};
+use std::{env::current_exe, future::Future, time::Duration};
 
 use actix_web::{http::StatusCode, App, HttpServer};
 use actix_web_opentelemetry::ClientExt;
@@ -10,7 +10,7 @@ use opentelemetry::{
     trace::{FutureExt, TraceContextExt, Tracer},
     Context, KeyValue,
 };
-use rand::rngs::OsRng;
+use rand::{rngs::OsRng, Rng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{
@@ -76,7 +76,7 @@ async fn main() {
         let (run, configure) = plaza::State::create::<Participant>(
             expect_number,
             Shared {
-                fragment_size: 100,
+                fragment_size: 4 << 20,
                 inner_k: 4,
                 inner_n: 4,
                 outer_k: 8,
@@ -224,6 +224,10 @@ async fn main() {
 
 // #[instrument(skip_all, fields(peer = common::hex_string(&peer.id)))]
 async fn join_network(peer: &Peer, cli: &Cli) -> Option<ReadyRun> {
+    // sleep(Duration::from_millis(
+    //     rand::thread_rng().gen_range(0..10 * 1000),
+    // ))
+    // .await;
     let client = Client::new();
     let mut response = client
         .post(format!("{}/join", cli.plaza.as_ref().unwrap()))
@@ -235,15 +239,10 @@ async fn join_network(peer: &Peer, cli: &Cli) -> Option<ReadyRun> {
         })
         .await
         .unwrap();
-    if response.status() != StatusCode::OK {
-        panic_any(String::from_utf8(response.body().await.unwrap().to_vec()).unwrap());
-    }
-    let join_id = response.json::<serde_json::Value>().await.unwrap()["id"]
-        .to_string()
-        .parse()
-        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let join = response.json::<plaza::Join>().await.unwrap();
 
-    let mut retry_interval = Duration::ZERO;
+    let mut retry_interval = join.wait;
     loop {
         sleep(retry_interval).await;
         match client
@@ -266,7 +265,7 @@ async fn join_network(peer: &Peer, cli: &Cli) -> Option<ReadyRun> {
                 break Some(ReadyRun {
                     participants,
                     shared,
-                    join_id,
+                    join_id: join.id,
                 })
             }
         }

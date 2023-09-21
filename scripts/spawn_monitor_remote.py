@@ -9,6 +9,7 @@ WORK_DIR = "/home/ubuntu"
 ARTIFACT = "./target/artifact/simple-entropy"
 SPAWN_MONITER = "./scripts/spawn_monitor.py"
 
+
 async def upload_artifact():
     tasks = []
     for host in set(SSH_HOSTS):
@@ -27,6 +28,8 @@ async def upload_artifact():
 async def run_remotes():
     tasks = []
     for ssh_host, host in zip(SSH_HOSTS, HOSTS):
+        await asyncio.sleep(1)
+        print(f"spawn monitor on {ssh_host}")
         proc = await asyncio.create_subprocess_shell(
             f"ssh {ssh_host} python3 {WORK_DIR}/spawn_monitor.py {host} {PLAZA} {NUM_PEER}"
         )

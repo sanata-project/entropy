@@ -12,7 +12,7 @@ use actix_web::{
 
 use opentelemetry::Context;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, to_value, Value};
+use serde_json::{to_value, Value};
 use tokio::sync::{mpsc, oneshot};
 
 pub struct State<S> {
@@ -34,7 +34,7 @@ enum Activity {
 type AppState = mpsc::UnboundedSender<StateMessage>;
 
 enum AppCommand {
-    Join(Value, oneshot::Sender<u32>),
+    Join(Value, oneshot::Sender<Join>),
     Leave(u32),
     Shutdown,
     // TODO implement this with `tokio::sync::watch`
@@ -47,6 +47,12 @@ pub struct News {
     pub wait: Duration,
     pub shutdown: bool,
     // TODO activities
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Join {
+    pub id: u32,
+    pub wait: Duration,
 }
 
 struct StateMessage {
@@ -66,10 +72,10 @@ impl From<AppCommand> for StateMessage {
 #[post("/join")]
 #[tracing::instrument(skip_all)]
 async fn join(data: Data<AppState>, participant: Json<Value>) -> HttpResponse {
-    let participant_id = oneshot::channel();
-    data.send(AppCommand::Join(participant.0, participant_id.0).into())
+    let result = oneshot::channel();
+    data.send(AppCommand::Join(participant.0, result.0).into())
         .unwrap();
-    HttpResponse::Ok().json(json!({ "id": participant_id.1.await.unwrap() }))
+    HttpResponse::Ok().json(result.1.await.unwrap())
 }
 
 #[post("/leave/{id}")]
@@ -178,7 +184,12 @@ impl<S> State<S> {
                         .insert(self.participant_id, participant.clone());
                     self.activities
                         .insert(SystemTime::now(), Activity::Join(participant));
-                    result.send(self.participant_id).is_err()
+                    result
+                        .send(Join {
+                            id: self.participant_id,
+                            wait: self.wait_duration(),
+                        })
+                        .is_err()
                 }
                 AppCommand::Leave(participant_id) => {
                     let participant = self.participants.remove(&participant_id).unwrap();

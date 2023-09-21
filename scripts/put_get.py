@@ -21,6 +21,7 @@ def to_timestamp(system_time):
 
 
 async def list_peer():
+    print("poll run status")
     async with aiohttp.ClientSession() as session:
         while True:
             async with session.get(f"{PLAZA}/run") as resp:
@@ -35,6 +36,7 @@ async def list_peer():
     ]
     wait = to_timestamp(run["Ready"]["assemble_time"]) - time.time() + 2
     if wait > 0:
+        print(f"wait {wait:.2f} seconds until assemble")
         await asyncio.sleep(wait)
     return peers
 
