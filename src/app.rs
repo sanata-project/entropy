@@ -75,7 +75,7 @@ enum AppCommand {
     DownloadFinish(ChunkKey, Vec<u8>),
 }
 
-struct StateMessage {
+pub struct StateMessage {
     command: AppCommand,
     context: Context,
 }
@@ -336,7 +336,7 @@ struct PutState {
 }
 
 impl State {
-    pub fn create(
+    pub fn new(
         local_peer: Peer,
         local_secret: SigningKey,
         fragment_size: u32,
@@ -347,12 +347,9 @@ impl State {
         peer_store: peer::Store,
         chunk_store: chunk::Store,
         local: LocalPoolHandle,
-    ) -> (
-        impl Future<Output = Self>,
-        impl FnOnce(&mut ServiceConfig) + Clone,
-    ) {
-        let messages = mpsc::unbounded_channel();
-        let mut state = State {
+        messages: mpsc::WeakUnboundedSender<StateMessage>,
+    ) -> Self {
+        State {
             local_peer,
             local_secret,
             fragment_size,
@@ -366,17 +363,12 @@ impl State {
             put_states: Default::default(),
             put_uploads: Default::default(),
             get_recovers: Default::default(),
-            messages: messages.0.downgrade(),
+            messages,
             local,
-        };
-        let run_state = async move {
-            state.run(messages.1).await;
-            state
-        };
-        (run_state, |config| Self::config(config, messages.0))
+        }
     }
 
-    async fn run(&mut self, mut messages: mpsc::UnboundedReceiver<StateMessage>) {
+    pub async fn run(&mut self, mut messages: mpsc::UnboundedReceiver<StateMessage>) {
         while let Some(message) = messages.recv().await {
             let _attach = message.context.attach();
             match message.command {
@@ -428,7 +420,7 @@ impl State {
         }
     }
 
-    fn config(config: &mut ServiceConfig, app_data: AppState) {
+    pub fn setup(config: &mut ServiceConfig, app_data: AppState) {
         config
             .app_data(Data::new(app_data))
             .service(upload_invite)
@@ -447,7 +439,7 @@ impl State {
             .service(benchmark_get);
     }
 
-    fn spawn_local<F: Future<Output = T> + 'static, T: Send + 'static>(
+    fn spawn<F: Future<Output = T> + 'static, T: Send + 'static>(
         local: LocalPoolHandle,
         create: impl FnOnce() -> F + Send + 'static,
     ) -> JoinHandle<T> {
@@ -533,7 +525,7 @@ impl State {
         let local_peer = self.local_peer.clone();
         let messages = self.messages.clone();
         let key = *key;
-        Self::spawn_local(self.local.clone(), move || async move {
+        Self::spawn(self.local.clone(), move || async move {
             let response = Client::new()
                 .post(format!("{}/upload/invite/{hex_key}/{index}", peer_uri))
                 .trace_request()
@@ -605,7 +597,7 @@ impl State {
         }
 
         let hex_key = hex_string(key);
-        Self::spawn_local(self.local.clone(), move || async move {
+        Self::spawn(self.local.clone(), move || async move {
             Client::new()
                 .get(format!("{}/upload/query/{hex_key}", message.uri))
                 .trace_request()
@@ -633,7 +625,7 @@ impl State {
         spawn(
             async move {
                 let fragment = task.with_current_context().await;
-                Self::spawn_local(local, move || async move {
+                Self::spawn(local, move || async move {
                     Client::new()
                         .post(format!("{uri}/upload/fragment/{hex_key}"))
                         .trace_request()
@@ -654,7 +646,7 @@ impl State {
                 let hex_key = hex_key.clone();
                 let members = upload.members.clone();
                 let peer = self.local_peer.clone();
-                Self::spawn_local(self.local.clone(), || async move {
+                Self::spawn(self.local.clone(), || async move {
                     Client::new()
                         .post(format!("{}/upload/members/{hex_key}", member.peer.uri))
                         .trace_request()
@@ -698,7 +690,7 @@ impl State {
         let index = chunk_state.local_index;
         let local_secret = self.local_secret.clone();
         let hex_key = hex_string(key);
-        Self::spawn_local(self.local.clone(), move || async move {
+        Self::spawn(self.local.clone(), move || async move {
             fragment_present.cancelled().await;
             let message = PingMessage {
                 members: Default::default(),
@@ -753,7 +745,7 @@ impl State {
                 let peer_uri = member.peer.uri.clone();
                 let hex_key = hex_string(key);
                 let local_peer = self.local_peer.clone();
-                Self::spawn_local(self.local.clone(), move || async move {
+                Self::spawn(self.local.clone(), move || async move {
                     Client::new()
                         .get(format!("{}/download/query/{hex_key}", peer_uri))
                         .trace_request()
@@ -779,7 +771,7 @@ impl State {
         spawn(
             async move {
                 let fragment = task.with_current_context().await;
-                Self::spawn_local(local, move || async move {
+                Self::spawn(local, move || async move {
                     Client::builder()
                         .disable_timeout()
                         .finish()
@@ -907,7 +899,7 @@ impl State {
             let hex_key = hex_key.clone();
             let messages = self.messages.clone();
             let key = *key;
-            Self::spawn_local(self.local.clone(), move || async move {
+            Self::spawn(self.local.clone(), move || async move {
                 let fragment = Client::new()
                     .get(format!("{}/repair/query/{hex_key}", member.peer.uri))
                     .trace_request()
@@ -940,7 +932,7 @@ impl State {
         spawn(
             async move {
                 let fragment = task.with_current_context().await;
-                Self::spawn_local(local, move || async move {
+                Self::spawn(local, move || async move {
                     Client::new()
                         .post(format!("{}/repair/fragment/{hex_key}", message.peer.uri))
                         .trace_request()

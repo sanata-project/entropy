@@ -1,43 +1,22 @@
-use std::{env::current_exe, future::Future, time::Duration};
+use std::{env::current_exe, time::Duration};
 
-use actix_web::{http::StatusCode, App, HttpServer};
-use actix_web_opentelemetry::ClientExt;
-use awc::Client;
+use actix_web::{
+    http::StatusCode,
+    web::{Data, PayloadConfig},
+    App, HttpServer,
+};
 use clap::Parser;
-use common::hex_string;
-use ed25519_dalek::SigningKey;
-use opentelemetry::{
-    trace::{FutureExt, TraceContextExt, Tracer},
-    Context, KeyValue,
-};
-use rand::{rngs::OsRng, Rng};
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use tokio::{
-    net::TcpListener,
-    spawn,
-    sync::mpsc,
-    task::{spawn_blocking, spawn_local},
-    time::{sleep, timeout},
-};
-use tokio_util::task::LocalPoolHandle;
+use opentelemetry::KeyValue;
+use tokio::{spawn, sync::mpsc, time::sleep};
+use tokio_util::{sync::CancellationToken, task::LocalPoolHandle};
 
-use crate::{
-    peer::Peer,
-    plaza::{News, Run},
-};
+use crate::{common::hex_string, peer::Peer};
 
 mod app;
 mod chunk;
 mod common;
 mod peer;
 mod plaza;
-
-#[derive(Debug, Serialize, Deserialize)]
-enum Participant {
-    Peer(Peer),
-    BenchmarkPeer(Peer),
-}
 
 #[derive(clap::Parser)]
 struct Cli {
@@ -47,264 +26,204 @@ struct Cli {
     #[clap(long)]
     plaza: Option<String>,
     #[clap(long)]
+    port: Option<u16>,
+    #[clap(long)]
     benchmark: bool,
-}
+    #[clap(long)]
+    num_host_peer: Option<usize>,
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Shared {
+    #[clap(long, default_value_t = 4 << 20)]
     fragment_size: u32,
+    #[clap(long, default_value_t = 32)]
     inner_k: u32,
+    #[clap(long, default_value_t = 80)]
     inner_n: u32,
+    #[clap(long, default_value_t = 8)]
     outer_k: u32,
+    #[clap(long, default_value_t = 10)]
     outer_n: u32,
 }
 
-struct ReadyRun {
-    participants: Vec<Participant>,
-    shared: Shared,
-    join_id: u32,
-}
-
-#[actix_web::main]
-async fn main() {
+fn main() {
     let cli = Cli::parse();
 
-    if let Some(expect_number) = cli.plaza_service {
-        common::setup_tracing([KeyValue::new("service.name", "entropy.plaza")]);
-
-        let mut shutdown = mpsc::unbounded_channel();
-        let (run, configure) = plaza::State::create::<Participant>(
-            expect_number,
-            Shared {
-                fragment_size: 4 << 20,
-                inner_k: 4,
-                inner_n: 4,
-                outer_k: 8,
-                outer_n: 10,
-            },
-            shutdown.0,
-        );
-        let state_handle = spawn(run);
+    if let Some(num_participant) = cli.plaza_service {
+        let shutdown = CancellationToken::new();
+        let state = Data::new(plaza::State::new(num_participant, shutdown.clone()));
         let server = HttpServer::new(move || {
             App::new()
                 .wrap(actix_web_opentelemetry::RequestTracing::new())
-                .configure(configure.clone())
+                .app_data(state.clone())
+                .service(plaza::join)
+                .service(plaza::leave)
+                .service(plaza::poll_ready)
+                .service(plaza::shutdown)
+                .service(plaza::poll_shutdown)
         })
         .bind((cli.host, 8080))
         .unwrap()
         .run();
         let server_handle = server.handle();
-        spawn(async move {
-            let _ = shutdown.1.recv().await;
-            server_handle.stop(true).await;
-        });
 
-        server.await.unwrap();
-        state_handle.await.unwrap(); // inspect returned state if necessary
-        spawn_blocking(common::shutdown_tracing).await.unwrap();
-        return;
-    }
-
-    let signing_key = SigningKey::generate(&mut OsRng);
-    let verifying_key = signing_key.verifying_key();
-    let peer_id = Sha256::digest(verifying_key);
-    println!("{}", hex_string(&peer_id));
-    common::setup_tracing([
-        KeyValue::new(
-            "service.name",
-            if cli.benchmark {
-                "entropy.benchmark-peer"
-            } else {
-                "entropy.peer"
-            },
-        ),
-        KeyValue::new("service.instance.id", hex_string(&peer_id)),
-    ]);
-
-    let listener = TcpListener::bind((&*cli.host, 0)).await.unwrap();
-    let peer = Peer {
-        uri: format!(
-            "http://{}:{}",
-            cli.host,
-            listener.local_addr().unwrap().port()
-        ),
-        id: peer_id.into(),
-        key: verifying_key,
-    };
-    println!("{}", peer.uri);
-
-    let run = join_network(&peer, &cli)
-        .with_context(Context::current_with_span(
-            opentelemetry::global::tracer("").start("join network"),
-        ))
-        .await;
-    let Some(run) = run else {
-        spawn_blocking(common::shutdown_tracing);
-        return;
-    };
-
-    let poll_handle = spawn_local(poll_network(&cli).with_context(Context::current_with_span(
-        opentelemetry::global::tracer("").start("poll network"),
-    )));
-
-    let peer_store = peer::Store::new(Vec::from_iter(run.participants.into_iter().map(
-        |participant| match participant {
-            Participant::Peer(peer) => peer,
-            Participant::BenchmarkPeer(peer) => peer,
-        },
-    )));
-    assert_eq!(peer_store.closest_peers(&peer.id, 1)[0].id, peer.id);
-
-    let chunk_path = current_exe()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join(common::hex_string(&peer.id));
-    tokio::fs::create_dir_all(&chunk_path).await.unwrap();
-    let chunk_store = chunk::Store::new(
-        chunk_path.clone(),
-        run.shared.fragment_size,
-        run.shared.inner_k,
-    );
-
-    let (run_app, configuration) = app::State::create(
-        peer,
-        signing_key,
-        run.shared.fragment_size,
-        run.shared.inner_n,
-        run.shared.inner_k,
-        run.shared.outer_n,
-        run.shared.outer_k,
-        peer_store,
-        chunk_store,
-        LocalPoolHandle::new(if cli.benchmark { 32 } else { 1 }),
-    );
-    let app_runtime = if cli.benchmark {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-    } else {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap()
-    };
-    let app_handle = spawn_blocking(move || app_runtime.block_on(run_app));
+            .block_on(async move {
+                common::setup_tracing([KeyValue::new("service.name", "entropy.plaza")]);
+                spawn(async move {
+                    shutdown.cancelled().await;
+                    server_handle.stop(true).await;
+                });
+                server.await.unwrap();
+                tokio::task::spawn_blocking(common::shutdown_tracing);
+            });
+        return;
+    }
 
+    let port = cli.port.unwrap();
+    let uri = format!("http://{}:{port}", cli.host);
+    let signing_key = Peer::signing_key(&uri);
+    let peer = Peer::new(uri);
+    println!("{}", peer.uri);
+    println!("{}", hex_string(&peer.id));
+    let work_dir = current_exe().unwrap().parent().unwrap().to_owned();
+    let peer_store = peer::Store::new(Vec::from_iter(
+        std::fs::read_to_string(work_dir.join("hosts.txt"))
+            .unwrap()
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .flat_map(|host| {
+                let host = host.to_string();
+                (0..cli.num_host_peer.unwrap())
+                    .map(move |index| Peer::new(format!("http://{host}:{}", 10000 + index)))
+            }),
+    ));
+    assert_eq!(peer_store.closest_peers(&peer.id, 1)[0].id, peer.id);
+
+    let chunk_path = work_dir
+        .join("entropy_chunk")
+        .join(common::hex_string(&peer.id));
+    std::fs::create_dir_all(&chunk_path).unwrap();
+    let chunk_store = chunk::Store::new(chunk_path.clone(), cli.fragment_size, cli.inner_k);
+
+    let local = LocalPoolHandle::new(if cli.benchmark {
+        std::thread::available_parallelism().unwrap().into()
+    } else {
+        1
+    });
+    let messages = mpsc::unbounded_channel();
+    let mut state = app::State::new(
+        peer.clone(),
+        signing_key,
+        cli.fragment_size,
+        cli.inner_n,
+        cli.inner_k,
+        cli.outer_n,
+        cli.outer_k,
+        peer_store,
+        chunk_store,
+        local.clone(),
+        messages.0.downgrade(),
+    );
     let server = HttpServer::new(move || {
         App::new()
             .wrap(actix_web_opentelemetry::RequestTracing::new())
-            .configure(configuration.clone())
-            .app_data(actix_web::web::PayloadConfig::new(8 << 20))
+            .configure(|config| app::State::setup(config, messages.0.clone()))
+            .app_data(PayloadConfig::new(8 << 20))
     });
     let server = if !cli.benchmark {
         server.workers(1)
     } else {
         server
     }
-    .listen(listener.into_std().unwrap())
+    .bind((cli.host, port))
     .unwrap()
     .run();
-    let server_handle = server.handle();
-    spawn(async move {
-        poll_handle.await.unwrap();
-        // this rarely stucks, not sure why
-        let _ = timeout(Duration::from_secs(1), server_handle.stop(false)).await;
-    });
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async move {
+            common::setup_tracing([
+                KeyValue::new(
+                    "service.name",
+                    if cli.benchmark {
+                        "entropy.benchmark-peer"
+                    } else {
+                        "entropy.peer"
+                    },
+                ),
+                KeyValue::new("service.instance.id", hex_string(&peer.id)),
+            ]);
 
-    println!("READY");
-    server.await.unwrap();
+            let server_handle = server.handle();
+            spawn(server);
 
-    app_handle.await.unwrap();
-    tokio::fs::remove_dir_all(&chunk_path).await.unwrap();
-    leave_network(&cli, run.join_id).await;
-    spawn_blocking(common::shutdown_tracing).await.unwrap();
+            let shutdown = CancellationToken::new();
+            local.spawn_pinned({
+                let plaza = cli.plaza.clone().unwrap();
+                let shutdown = shutdown.clone();
+                move || plaza_session(plaza, shutdown.clone())
+            });
+
+            spawn(async move {
+                shutdown.cancelled().await;
+                server_handle.stop(true).await;
+            });
+            state.run(messages.1).await;
+            println!("state exit");
+
+            tokio::task::spawn_blocking(common::shutdown_tracing);
+        });
+
+    std::fs::remove_dir_all(&chunk_path).unwrap();
 }
 
-// #[instrument(skip_all, fields(peer = common::hex_string(&peer.id)))]
-async fn join_network(peer: &Peer, cli: &Cli) -> Option<ReadyRun> {
-    // sleep(Duration::from_millis(
-    //     rand::thread_rng().gen_range(0..10 * 1000),
-    // ))
-    // .await;
-    let client = Client::new();
-    let mut response = client
-        .post(format!("{}/join", cli.plaza.as_ref().unwrap()))
-        .trace_request()
-        .send_json(&if cli.benchmark {
-            Participant::BenchmarkPeer(peer.clone())
-        } else {
-            Participant::Peer(peer.clone())
-        })
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let join = response.json::<plaza::Join>().await.unwrap();
+async fn plaza_session(plaza: String, shutdown: CancellationToken) {
+    let client = awc::Client::new();
+    let mut response = client.post(format!("{plaza}/join")).send().await.unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "{:?}",
+        response.body().await
+    );
 
-    let mut retry_interval = join.wait;
     loop {
-        sleep(retry_interval).await;
-        match client
-            .get(format!("{}/run", cli.plaza.as_ref().unwrap()))
-            .trace_request()
-            .send()
-            .await
-            .unwrap()
-            .json::<plaza::Run<Participant, Shared>>()
-            .await
-            .unwrap()
-        {
-            Run::Retry(interval) => retry_interval = interval,
-            Run::Shutdown => break None,
-            Run::Ready {
-                participants,
-                assemble_time: _,
-                shared,
-            } => {
-                break Some(ReadyRun {
-                    participants,
-                    shared,
-                    join_id: join.id,
-                })
-            }
-        }
-    }
-    // println!("{response:?}");
-    // run
-}
-
-async fn leave_network(cli: &Cli, join_id: u32) {
-    let response = Client::new()
-        .post(format!("{}/leave/{join_id}", cli.plaza.as_ref().unwrap()))
-        .trace_request()
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-}
-
-fn poll_network(cli: &Cli) -> impl Future<Output = ()> {
-    let endpoint = format!("{}/news", cli.plaza.as_ref().unwrap());
-    async move {
-        let client = Client::new();
-        let mut wait = Duration::from_secs(1);
-        loop {
-            sleep(wait).await; //
-            let news = client
-                .get(&endpoint)
-                .trace_request()
+        sleep(Duration::from_secs(1)).await;
+        let global_shutdown = async {
+            let mut response = client
+                .get(format!("{plaza}/shutdown"))
                 .send()
                 .await
-                .unwrap()
-                .json::<News>()
-                .await
                 .unwrap();
-            tracing::info!(shutdown = news.shutdown, "news");
-            if news.shutdown {
-                break;
-            }
-            wait = news.wait;
+            assert_eq!(
+                response.status(),
+                StatusCode::OK,
+                "{:?}",
+                response.body().await
+            );
+            response.json::<bool>().await.unwrap()
+        };
+        let global_shutdown = tokio::select! {
+            global_shutdown = global_shutdown => global_shutdown,
+            () = shutdown.cancelled() => break,
+        };
+
+        if global_shutdown {
+            shutdown.cancel();
+            break;
         }
     }
+
+    let mut response = client.post(format!("{plaza}/leave")).send().await.unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "{:?}",
+        response.body().await
+    );
+    // println!("{} leaved", peer.uri);
 }

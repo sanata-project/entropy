@@ -20,13 +20,25 @@ async def run_peers():
             "RUST_LOG=info",
             "RUST_BACKTRACE=1",
             # "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://nsl-node1.d2:4317",
-            "OTEL_SDK_DISABLED=true",
+            # "OTEL_SDK_DISABLED=true",
             f"{WORK_DIR}/entropy",
             HOST,
             "--port",
-            str(10000 + index),
+            10000 + index,
             "--plaza",
             PLAZA,
+            "--num-host-peer",
+            NUM_PEER,
+            "--fragment-size",
+            100,
+            "--inner-k",
+            4,
+            "--inner-n",
+            4,
+            "--outer-k",
+            2,
+            "--outer-n",
+            2,
         ]
         if index < NUM_BENCHMARK_PEER:
             command.append("--benchmark")
@@ -34,7 +46,9 @@ async def run_peers():
             f"1>{WORK_DIR}/entropy-{index:03}-output.txt",
             f"2>{WORK_DIR}/entropy-{index:03}-errors.txt",
         ]
-        proc = await asyncio.create_subprocess_shell(" ".join(command))
+        proc = await asyncio.create_subprocess_shell(
+            " ".join(str(item) for item in command)
+        )
 
         async def wait(proc, index):
             code = await proc.wait()

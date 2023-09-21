@@ -1,10 +1,9 @@
 import asyncio
 import aiohttp
-import time
 import sys
 import random
 
-from common import NUM_HOST_BENCHMARK_PEER, HOSTS
+from common import NUM_HOST_BENCHMARK_PEER, HOSTS, SERVICE as PLAZA
 
 
 ARGV = dict(enumerate(sys.argv))
@@ -18,6 +17,14 @@ def to_timestamp(system_time):
         system_time["secs_since_epoch"]
         + system_time["nanos_since_epoch"] / 1000 / 1000 / 1000
     )
+
+
+async def ready():
+    async with aiohttp.ClientSession() as session:
+        ready = False
+        while not ready:
+            async with session.get(f"{PLAZA}/ready") as resp:
+                ready = await resp.json()
 
 
 async def put_get(peer):
@@ -54,6 +61,7 @@ async def operation(peers):
 
 
 async def main():
+    await ready()
     peers = [
         f"http://{host}:{10000 + index}"
         for host in HOSTS
