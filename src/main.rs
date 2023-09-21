@@ -77,12 +77,12 @@ async fn main() {
         let (run, configure) = plaza::State::create::<Participant>(
             expect_number,
             Shared {
-                fragment_size: 4 << 20,
+                fragment_size: 100,
                 inner_k: 4,
                 inner_n: 4,
                 outer_k: 8,
                 outer_n: 10,
-                chunk_root: "/local/cowsay/artifacts/entropy_chunk".into(),
+                chunk_root: "/home/ubuntu".into(),
             },
             shutdown.0,
         );
@@ -126,7 +126,11 @@ async fn main() {
 
     let listener = TcpListener::bind((&*cli.host, 0)).await.unwrap();
     let peer = Peer {
-        uri: format!("http://{}", listener.local_addr().unwrap()),
+        uri: format!(
+            "http://{}:{}",
+            cli.host,
+            listener.local_addr().unwrap().port()
+        ),
         id: peer_id.into(),
         key: verifying_key,
     };
@@ -177,7 +181,6 @@ async fn main() {
     let app_runtime = if cli.benchmark {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
-            .worker_threads(32)
             .build()
             .unwrap()
     } else {
@@ -193,8 +196,12 @@ async fn main() {
             .wrap(actix_web_opentelemetry::RequestTracing::new())
             .configure(configuration.clone())
             .app_data(actix_web::web::PayloadConfig::new(8 << 20))
-    })
-    .workers(1)
+    });
+    let server = if !cli.benchmark {
+        server.workers(1)
+    } else {
+        server
+    }
     .listen(listener.into_std().unwrap())
     .unwrap()
     .run();

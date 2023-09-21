@@ -85,3 +85,7 @@ module "region-1" {
 output "service" {
   value = module.service.instances[0]
 }
+
+output "hosts" {
+  value = concat(module.region-1.instances)
+}

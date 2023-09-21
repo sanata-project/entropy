@@ -1,0 +1,1 @@
+curl http://$(terraform -chdir=terraform output -raw service):8080/shutdown -X POST

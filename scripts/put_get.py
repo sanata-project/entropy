@@ -3,12 +3,21 @@ import aiohttp
 import time
 import sys
 import random
+from subprocess import run, PIPE
 
 ARGV = dict(enumerate(sys.argv))
 NUM_OPERATION = int(ARGV.get(1, "1"))
 NUM_CONCURRENT = int(ARGV.get(2, "1"))
 assert NUM_CONCURRENT <= NUM_OPERATION
-PLAZA = "http://nsl-node1.d2:8080"
+
+PLAZA_HOST = run(
+    "terraform -chdir=terraform output -raw service",
+    shell=True,
+    check=True,
+    stdout=PIPE,
+    text=True,
+).stdout
+PLAZA = f"http://{PLAZA_HOST}:8080"
 
 
 def to_timestamp(system_time):
@@ -39,10 +48,10 @@ async def list_peer():
 
 async def put_get(peer):
     async with aiohttp.ClientSession() as session:
-        print('commit put operation')
+        print("commit put operation")
         async with session.post(f"{peer}/benchmark/put") as resp:
             put_id = await resp.json()
-        print('poll status')
+        print("poll status")
         while True:
             await asyncio.sleep(1)
             async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
@@ -53,9 +62,9 @@ async def put_get(peer):
         print(f",{peer},put,{latency}")
         await asyncio.sleep(1)
 
-        print('commit get operation')
+        print("commit get operation")
         await session.post(f"{peer}/benchmark/get/{put_id}")
-        print('poll status')
+        print("poll status")
         while True:
             await asyncio.sleep(1)
             async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
@@ -76,7 +85,7 @@ async def main():
     peers = await list_peer()
     tasks = []
     for _ in range(NUM_CONCURRENT):
-        tasks.append(operation(peers))
+        tasks.append(asyncio.create_task(operation(peers)))
     num_operation = NUM_CONCURRENT
     while tasks:
         done_tasks, tasks = await asyncio.wait(

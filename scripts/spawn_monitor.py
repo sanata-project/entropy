@@ -3,10 +3,12 @@ import sys
 
 ARGV = dict(enumerate(sys.argv))
 HOST = ARGV.get(1, "10.0.0.1")
+# PLAZA = "http://nsl-node1.d2:8080"
+PLAZA = ARGV.get(2, "http://nsl-node1.d2:8080")
+# WORK_DIR = "/local/cowsay/artifacts"
+WORK_DIR = ARGV.get(3, "/local/cowsay/artifacts")
 NUM_PEER = 100
 NUM_BENCHMARK_PEER = 1
-WORK_DIR = "/local/cowsay/artifacts"
-PLAZA = "http://nsl-node1.d2:8080"
 
 
 async def run_peers():
@@ -15,7 +17,8 @@ async def run_peers():
         command = [
             "RUST_LOG=info",
             "RUST_BACKTRACE=1",
-            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://nsl-node1.d2:4317",
+            # "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://nsl-node1.d2:4317",
+            "OTEL_SDK_DISABLED=true",
             f"{WORK_DIR}/entropy",
             HOST,
             "--plaza",
@@ -33,7 +36,7 @@ async def run_peers():
             code = await proc.wait()
             return code, index
 
-        tasks.append(wait(proc, index))
+        tasks.append(asyncio.create_task(wait(proc, index)))
     active_shutdown = False
     while tasks:
         done_tasks, tasks = await asyncio.wait(
