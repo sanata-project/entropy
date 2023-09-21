@@ -2,14 +2,15 @@ import asyncio
 import sys
 import pathlib
 
+from common import (
+    SERVICE as PLAZA,
+    NUM_HOST_PEER as NUM_PEER,
+    NUM_HOST_BENCHMARK_PEER as NUM_BENCHMARK_PEER,
+)
+
 ARGV = dict(enumerate(sys.argv))
 HOST = ARGV.get(1, "10.0.0.1")
-# PLAZA = "http://nsl-node1.d2:8080"
-PLAZA = ARGV.get(2, "http://nsl-node1.d2:8080")
-# WORK_DIR = "/local/cowsay/artifacts"
 WORK_DIR = pathlib.Path(__file__).absolute().parent
-NUM_PEER = int(ARGV.get(3, "1"))
-NUM_BENCHMARK_PEER = 1
 
 
 async def run_peers():
@@ -22,6 +23,8 @@ async def run_peers():
             "OTEL_SDK_DISABLED=true",
             f"{WORK_DIR}/entropy",
             HOST,
+            "--port",
+            str(10000 + index),
             "--plaza",
             PLAZA,
         ]
@@ -54,7 +57,7 @@ async def run_peers():
 
 
 async def shutdown_peers():
-    proc = await asyncio.create_subprocess_shell(f"curl -X POST {PLAZA}/shutdown")
+    proc = await asyncio.create_subprocess_shell(f"curl -s -X POST {PLAZA}/shutdown")
     await proc.wait()
 
 

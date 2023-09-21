@@ -1,1 +1,1 @@
-curl $(python3 scripts/common.py service)/shutdown -X POST
+curl $(python3 scripts/common.py SERVICE)/shutdown -X POST

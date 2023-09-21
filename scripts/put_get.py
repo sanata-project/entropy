@@ -4,7 +4,7 @@ import time
 import sys
 import random
 
-from common import SERVICE as PLAZA
+from common import NUM_HOST_BENCHMARK_PEER, HOSTS
 
 
 ARGV = dict(enumerate(sys.argv))
@@ -18,27 +18,6 @@ def to_timestamp(system_time):
         system_time["secs_since_epoch"]
         + system_time["nanos_since_epoch"] / 1000 / 1000 / 1000
     )
-
-
-async def list_peer():
-    print("poll run status")
-    async with aiohttp.ClientSession() as session:
-        while True:
-            async with session.get(f"{PLAZA}/run") as resp:
-                run = await resp.json()
-            if "Ready" in run:
-                break
-            await asyncio.sleep(1)
-    peers = [
-        participant["BenchmarkPeer"]["uri"]
-        for participant in run["Ready"]["participants"]
-        if "BenchmarkPeer" in participant
-    ]
-    wait = to_timestamp(run["Ready"]["assemble_time"]) - time.time() + 2
-    if wait > 0:
-        print(f"wait {wait:.2f} seconds until assemble")
-        await asyncio.sleep(wait)
-    return peers
 
 
 async def put_get(peer):
@@ -70,14 +49,16 @@ async def put_get(peer):
         print(f",{peer},get,{latency}")
 
 
-async def operation(peers=None):
-    if not peers:
-        peers = await list_peer()
+async def operation(peers):
     await put_get(random.choice(peers))
 
 
 async def main():
-    peers = await list_peer()
+    peers = [
+        f"http://{host}:{10000 + index}"
+        for host in HOSTS
+        for index in range(NUM_HOST_BENCHMARK_PEER)
+    ]
     tasks = []
     for _ in range(NUM_CONCURRENT):
         tasks.append(asyncio.create_task(operation(peers)))
