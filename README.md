@@ -6,47 +6,33 @@ Prepare third-party dependencies.
 $ git clone https://github.com/catid/wirehair wirehair/wirehair
 ```
 
-Build artifact
+Create `scripts/hosts.txt` with following content
+
 ```
-$ cargo build --profile artifact --bin simple-entropy
+#service <SERVICE_HOST>
+<HOST1>
+<HOST2>
+...
 ```
 
-Run the plaza service (to be updated)
+Build artifact and run plaza service
 ```
-$ RUST_LOG=info \
-    cargo run --release -- <HOST_NAME> --plaza-service <N>
-```
-
-Replace `<HOST_NAME>` with server's publicly-known host name, e.g. `localhost`.
-Replace `<N>` with the number of peers to join the network.
-
-Modify `scripts/spawn_monitor.py` with expected `WORK_DIR`, `NUM_PEER` for 
-number of peers on each host, and `PLAZA` for plaza service endpoint, which
-should be `http://<PLAZA_HOST_NAME>:8080`.
-Modify `scripts/spawn_monitor_remote.py` with expected `WORK_DIR` and `HOSTS`/
-`SSH_HOSTS` for hosts.
-
-Then spawn and monitor peers on hosts
-```
-$ python3 scripts/spawn_monitor/remote.py
+$ bash -ex scripts/run_service.sh
 ```
 
-Get a list of all peer URI's
+In the second terminal, spawn and monitor peers on hosts
 ```
-$ curl http://<PLAZE_HOST_NAME>:8080/run | jq -r .Ready.participants[].Peer.uri
-```
-
-Perform a PUT benchmark on a peer
-```
-$ curl -X POST http://<PEER_URI>/benchmark/put
+$ python3 scripts/spawn_monitor_remote.py
 ```
 
-Poll benchmark status
+In the third terminal, run put/get benchmark
 ```
-$ curl http://<PEER_URI>/benchmark/put | jq
+$ python3 scripts/put_get.py [NUM_OPERATION] [NUM_CONCURRENT]
 ```
 
 Shutdown peers and plaza service
 ```
-$ curl -X POST http://<PLAZE_HOST_NAME>:8080/shutdown
+$ bash -ex scripts/stop_peers.sh
 ```
+
+The first two terminals should exit automatically.

@@ -1,0 +1,161 @@
+comment,peer,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent
+commit put operation on http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-192-100-117.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-144-24-190.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-228-39-199.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-76-220-144.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-231-178-252.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-94-120-28.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-163-41-189.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-241-64.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-166-78-64.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-162-214-53.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-163-118-173.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-166-74-21.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-245-182-169.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-72-74-20.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-219-204-243.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-71-206-104.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-59-72-94.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-200-35.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-43-198-72-95.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-230-23-164.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-230-17-105.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-244-110-216.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-163-115-99.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-245-10-238.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-233-189-65.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-67-23-210.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-93-178-78.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-244-105-240.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-15-228-98-221.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-144-6-131.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-223-243.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-123-254-146.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-53-176-146.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-244-113-18.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-43-198-139-150.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-35-159-25-96.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-245-13-80.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-16-163-42-122.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-79-228-177.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-176-119-171.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-16-162-91-155.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-241-160.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-167-121-124.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-231-64-240.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-50-177.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-162-56-61.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-219-193-198.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-79-246-123.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-53-150-0.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-151-69-115.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-15-228-228-40.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-184-72-23-43.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-43-198-23-79.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-228-188-62.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-67-175-130.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-183-226-185.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-144-81-138.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-233-147-251.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-53-212-194.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-120-146-178.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-166-63-111.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-57-148-216.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-176-138-235.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-14-124.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-228-48-142.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-232-157-32.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-15-228-185-47.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-196-149-15.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-241-129.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-66-235-241.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-71-16-252.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-233-194-85.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-68-96-40.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-67-37-135.us-west-1.compute.amazonaws.com:10000
+[Errno 104] Connection reset by peer
+Server disconnected
+[Errno 104] Connection reset by peer
+Server disconnected
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+Server disconnected
+Server disconnected
+Server disconnected
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+Cannot connect to host ec2-18-166-78-64.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.166.78.64', 10000)]
+Cannot connect to host ec2-18-162-214-53.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.162.214.53', 10000)]
+Cannot connect to host ec2-18-166-74-21.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.166.74.21', 10000)]
+Cannot connect to host ec2-43-198-72-95.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('43.198.72.95', 10000)]
+Cannot connect to host ec2-18-163-41-189.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.163.41.189', 10000)]
+[Errno 104] Connection reset by peer
+Cannot connect to host ec2-43-198-23-79.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('43.198.23.79', 10000)]
+Cannot connect to host ec2-18-162-56-61.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.162.56.61', 10000)]
+Cannot connect to host ec2-18-163-118-173.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.163.118.173', 10000)]
+Cannot connect to host ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.166.78.231', 10000)]
+Cannot connect to host ec2-16-162-91-155.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('16.162.91.155', 10000)]
+Cannot connect to host ec2-18-167-121-124.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.167.121.124', 10000)]
+[Errno 104] Connection reset by peer
+Cannot connect to host ec2-18-166-63-111.ap-east-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.166.63.111', 10000)]
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+Server disconnected
+[Errno 104] Connection reset by peer
+Server disconnected
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+Cannot connect to host ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('54.215.211.165', 10000)]
+[Errno 104] Connection reset by peer
+Cannot connect to host ec2-18-144-81-138.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.144.81.138', 10000)]
+Cannot connect to host ec2-54-176-138-235.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('54.176.138.235', 10000)]
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+Cannot connect to host ec2-18-144-24-190.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.144.24.190', 10000)]
+[Errno 104] Connection reset by peer
+Cannot connect to host ec2-52-53-212-194.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('52.53.212.194', 10000)]
+Cannot connect to host ec2-54-151-69-115.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('54.151.69.115', 10000)]
+Cannot connect to host ec2-18-144-6-131.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('18.144.6.131', 10000)]
+Cannot connect to host ec2-52-53-176-146.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('52.53.176.146', 10000)]
+Cannot connect to host ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('52.53.249.203', 10000)]
+Cannot connect to host ec2-54-219-204-243.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('54.219.204.243', 10000)]
+Cannot connect to host ec2-54-176-119-171.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('54.176.119.171', 10000)]
+Cannot connect to host ec2-54-219-193-198.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('54.219.193.198', 10000)]
+Cannot connect to host ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('3.101.25.224', 10000)]
+Cannot connect to host ec2-54-67-37-135.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('54.67.37.135', 10000)]
+Cannot connect to host ec2-52-53-150-0.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('52.53.150.0', 10000)]
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+[Errno 104] Connection reset by peer
+Cannot connect to host ec2-3-79-228-177.eu-central-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('3.79.228.177', 10000)]
+Cannot connect to host ec2-13-244-105-240.af-south-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('13.244.105.240', 10000)]

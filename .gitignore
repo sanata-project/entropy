@@ -1,4 +1,5 @@
-hosts.txt
+/scripts/hosts.txt
+/notebooks/*.pdf
 
 /target
 

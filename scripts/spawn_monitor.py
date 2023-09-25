@@ -6,11 +6,27 @@ from common import (
     SERVICE as PLAZA,
     NUM_HOST_PEER as NUM_PEER,
     NUM_HOST_BENCHMARK_PEER as NUM_BENCHMARK_PEER,
+    FRAGMENT_SIZE,
+    INNER_K,
+    INNER_N,
+    OUTER_K,
+    OUTER_N,
+    REPAIR_CONCURRENCY,
+    PROTOCOL,
 )
 
 ARGV = dict(enumerate(sys.argv))
 HOST = ARGV.get(1, "10.0.0.1")
+EXTRA_ARGS = sys.argv[2:]
 WORK_DIR = pathlib.Path(__file__).absolute().parent
+
+if "--repair" in EXTRA_ARGS:
+    if PROTOCOL == "entropy":
+        OUTER_K = OUTER_N = REPAIR_CONCURRENCY
+    if PROTOCOL == "kademlia":
+        INNER_K = INNER_N = max(REPAIR_CONCURRENCY // OUTER_K, 1)
+        OUTER_K = OUTER_N = REPAIR_CONCURRENCY // INNER_K
+        assert INNER_K * OUTER_K == REPAIR_CONCURRENCY
 
 
 async def run_peers():
@@ -19,7 +35,7 @@ async def run_peers():
         command = [
             "RUST_LOG=info",
             "RUST_BACKTRACE=1",
-            # "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://ec2-18-163-41-210.ap-east-1.compute.amazonaws.com:4317",
+            # "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://10.0.0.1:4317",
             "OTEL_SDK_DISABLED=true",
             f"{WORK_DIR}/entropy",
             HOST,
@@ -30,15 +46,16 @@ async def run_peers():
             "--num-host-peer",
             NUM_PEER,
             "--fragment-size",
-            100,
-            # "--inner-k",
-            # 4,
-            # "--inner-n",
-            # 4,
+            FRAGMENT_SIZE,
+            "--inner-k",
+            INNER_K,
+            "--inner-n",
+            INNER_N,
             "--outer-k",
-            2,
+            OUTER_K,
             "--outer-n",
-            2,
+            OUTER_N,
+            *EXTRA_ARGS,
         ]
         if index < NUM_BENCHMARK_PEER:
             command.append("--benchmark")
@@ -55,6 +72,7 @@ async def run_peers():
             return code, index
 
         tasks.append(asyncio.create_task(wait(proc, index)))
+
     active_shutdown = False
     while tasks:
         done_tasks, tasks = await asyncio.wait(

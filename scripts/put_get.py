@@ -3,12 +3,22 @@ import aiohttp
 import sys
 import random
 
-from common import NUM_HOST_BENCHMARK_PEER, HOSTS, SERVICE as PLAZA
+from common import (
+    NUM_HOST_BENCHMARK_PEER,
+    HOSTS,
+    SERVICE as PLAZA,
+    INNER_K,
+    INNER_N,
+    OUTER_K,
+    OUTER_N,
+    PROTOCOL,
+    NUM_OPERATION,
+    NUM_TOTAL_PEER,
+)
 
 
 ARGV = dict(enumerate(sys.argv))
-NUM_OPERATION = int(ARGV.get(1, "1"))
-NUM_CONCURRENT = int(ARGV.get(2, "1"))
+NUM_CONCURRENT = int(ARGV.get(1, "1"))
 assert NUM_CONCURRENT <= NUM_OPERATION
 
 
@@ -27,40 +37,52 @@ async def ready():
                 ready = await resp.json()
 
 
-async def put_get(peer):
+async def put_get(i, peer):
     async with aiohttp.ClientSession() as session:
-        print("commit put operation")
-        async with session.post(f"{peer}/benchmark/put") as resp:
-            put_id = await resp.json()
-        print("poll status")
+        print(f"{i:02} commit put operation on {peer}")
+        async with session.post(f"{peer}/benchmark/{PROTOCOL}") as resp:
+            benchmark_id = await resp.json()
         while True:
             await asyncio.sleep(1)
-            async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
+            async with session.get(f"{peer}/benchmark/{benchmark_id}") as resp:
                 result = await resp.json()
                 if result["put_end"]:
                     break
         latency = to_timestamp(result["put_end"]) - to_timestamp(result["put_start"])
-        print(f",{peer},put,{latency}")
+        print(
+            f",{peer},put,{latency},{PROTOCOL},{INNER_K},{INNER_N},{OUTER_K},{OUTER_N},{NUM_CONCURRENT},{NUM_TOTAL_PEER}"
+        )
         await asyncio.sleep(1)
 
-        print("commit get operation")
-        await session.post(f"{peer}/benchmark/get/{put_id}")
-        print("poll status")
+        print(f"{i:02} commit get operation on {peer}")
+        await session.post(f"{peer}/benchmark/{benchmark_id}/{PROTOCOL}/get")
         while True:
             await asyncio.sleep(1)
-            async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
+            async with session.get(f"{peer}/benchmark/{benchmark_id}") as resp:
                 result = await resp.json()
                 if result["get_end"]:
                     break
         latency = to_timestamp(result["get_end"]) - to_timestamp(result["get_start"])
-        print(f",{peer},get,{latency}")
+        print(
+            f",{peer},get,{latency},{PROTOCOL},{INNER_K},{INNER_N},{OUTER_K},{OUTER_N},{NUM_CONCURRENT},{NUM_TOTAL_PEER}"
+        )
+        await asyncio.sleep(1)
+    return peer
 
 
-async def operation(peers):
-    await put_get(random.choice(peers))
+def choose_peer(peers, working_peers):
+    assert len(working_peers) != len(peers)
+    while True:
+        peer = random.choice(peers)
+        if peer not in working_peers:
+            working_peers.add(peer)
+            return peer
 
 
 async def main():
+    print(
+        "comment,peer,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent,num_participant"
+    )
     await ready()
     peers = [
         f"http://{host}:{10000 + index}"
@@ -68,17 +90,27 @@ async def main():
         for index in range(NUM_HOST_BENCHMARK_PEER)
     ]
     tasks = []
-    for _ in range(NUM_CONCURRENT):
-        tasks.append(asyncio.create_task(operation(peers)))
+    working_peers = set()
+    for i in range(NUM_CONCURRENT):
+        # await asyncio.sleep(5)
+        tasks.append(asyncio.create_task(put_get(i, choose_peer(peers, working_peers))))
     num_operation = NUM_CONCURRENT
     while tasks:
         done_tasks, tasks = await asyncio.wait(
             tasks, return_when=asyncio.FIRST_COMPLETED
         )
-        for _ in done_tasks:
-            if num_operation < NUM_OPERATION:
+        for done_task in done_tasks:
+            if done_task.exception():
+                print(done_task.exception())
+            elif num_operation < NUM_OPERATION:
+                peer = done_task.result()
+                working_peers.remove(peer)
+                tasks.add(
+                    asyncio.create_task(
+                        put_get(num_operation, choose_peer(peers, working_peers))
+                    )
+                )
                 num_operation += 1
-                tasks.add(asyncio.create_task(operation()))
 
 
 if __name__ == "__main__":

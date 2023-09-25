@@ -1,0 +1,401 @@
+comment,peer,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent
+commit put operation on http://ec2-54-176-138-235.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-244-113-18.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-15-228-98-221.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-166-72-192.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-53-212-194.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-66-235-241.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-233-189-65.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-241-129.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-67-37-135.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-94-15-141.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-230-17-105.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-176-119-171.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-71-16-252.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-144-81-138.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-228-48-142.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-151-69-115.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-231-178-252.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-94-120-28.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-230-23-164.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-228-117-241.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-59-72-94.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-93-178-78.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-71-206-104.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-166-78-64.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-244-118-7.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-245-10-238.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-163-118-173.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-15-228-228-40.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-232-157-32.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-144-79-42.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-79-242-17.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-162-56-61.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-241-160.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-219-193-198.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-68-96-40.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-245-182-169.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-144-6-131.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-67-175-130.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-75-176-24.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-236-43.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-245-10-216.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-166-74-21.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-53-150-0.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-49-6.af-south-1.compute.amazonaws.com:10000
+,http://ec2-52-59-72-94.eu-central-1.compute.amazonaws.com:10000,put,20.354081630706787,entropy,32,80,8,10,48
+,http://ec2-3-75-176-24.eu-central-1.compute.amazonaws.com:10000,put,19.83347511291504,entropy,32,80,8,10,48
+,http://ec2-3-79-242-17.eu-central-1.compute.amazonaws.com:10000,put,19.85545587539673,entropy,32,80,8,10,48
+,http://ec2-3-66-235-241.eu-central-1.compute.amazonaws.com:10000,put,20.489758253097534,entropy,32,80,8,10,48
+commit get operation on http://ec2-52-59-72-94.eu-central-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-3-75-176-24.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-71-16-252.eu-central-1.compute.amazonaws.com:10000,put,20.868096351623535,entropy,32,80,8,10,48
+,http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000,put,20.987974405288696,entropy,32,80,8,10,48
+commit get operation on http://ec2-3-79-242-17.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-71-206-104.eu-central-1.compute.amazonaws.com:10000,put,20.67587947845459,entropy,32,80,8,10,48
+,http://ec2-3-67-175-130.eu-central-1.compute.amazonaws.com:10000,put,20.75935125350952,entropy,32,80,8,10,48
+,http://ec2-18-166-72-192.ap-east-1.compute.amazonaws.com:10000,put,21.89030385017395,entropy,32,80,8,10,48
+,http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000,put,21.959852933883667,entropy,32,80,8,10,48
+,http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000,put,21.74046802520752,entropy,32,80,8,10,48
+,http://ec2-18-166-74-21.ap-east-1.compute.amazonaws.com:10000,put,21.999884366989136,entropy,32,80,8,10,48
+,http://ec2-18-163-118-173.ap-east-1.compute.amazonaws.com:10000,put,21.684125423431396,entropy,32,80,8,10,48
+,http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000,put,21.45284938812256,entropy,32,80,8,10,48
+,http://ec2-18-166-78-64.ap-east-1.compute.amazonaws.com:10000,put,21.252711296081543,entropy,32,80,8,10,48
+,http://ec2-54-93-178-78.eu-central-1.compute.amazonaws.com:10000,put,20.512726545333862,entropy,32,80,8,10,48
+,http://ec2-3-68-96-40.eu-central-1.compute.amazonaws.com:10000,put,20.981648683547974,entropy,32,80,8,10,48
+,http://ec2-13-245-10-238.af-south-1.compute.amazonaws.com:10000,put,21.5945827960968,entropy,32,80,8,10,48
+commit get operation on http://ec2-3-66-235-241.eu-central-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-3-71-16-252.eu-central-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-3-71-206-104.eu-central-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-3-67-175-130.eu-central-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-166-72-192.ap-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-166-74-21.ap-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-163-118-173.ap-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000
+,http://ec2-13-244-118-7.af-south-1.compute.amazonaws.com:10000,put,22.16378617286682,entropy,32,80,8,10,48
+,http://ec2-13-246-241-160.af-south-1.compute.amazonaws.com:10000,put,22.42768120765686,entropy,32,80,8,10,48
+,http://ec2-13-246-49-6.af-south-1.compute.amazonaws.com:10000,put,22.590616703033447,entropy,32,80,8,10,48
+commit get operation on http://ec2-18-166-78-64.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-13-246-241-129.af-south-1.compute.amazonaws.com:10000,put,21.79800319671631,entropy,32,80,8,10,48
+,http://ec2-18-162-56-61.ap-east-1.compute.amazonaws.com:10000,put,22.466713428497314,entropy,32,80,8,10,48
+,http://ec2-54-151-69-115.us-west-1.compute.amazonaws.com:10000,put,22.304723501205444,entropy,32,80,8,10,48
+,http://ec2-52-53-212-194.us-west-1.compute.amazonaws.com:10000,put,22.305198669433594,entropy,32,80,8,10,48
+commit get operation on http://ec2-54-93-178-78.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-54-176-138-235.us-west-1.compute.amazonaws.com:10000,put,21.997310161590576,entropy,32,80,8,10,48
+,http://ec2-54-67-37-135.us-west-1.compute.amazonaws.com:10000,put,21.93880605697632,entropy,32,80,8,10,48
+,http://ec2-13-245-182-169.af-south-1.compute.amazonaws.com:10000,put,21.483959197998047,entropy,32,80,8,10,48
+commit get operation on http://ec2-3-68-96-40.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-13-244-113-18.af-south-1.compute.amazonaws.com:10000,put,22.139700889587402,entropy,32,80,8,10,48
+commit get operation on http://ec2-13-245-10-238.af-south-1.compute.amazonaws.com:10000
+,http://ec2-18-144-6-131.us-west-1.compute.amazonaws.com:10000,put,22.5613534450531,entropy,32,80,8,10,48
+,http://ec2-54-176-119-171.us-west-1.compute.amazonaws.com:10000,put,22.073652744293213,entropy,32,80,8,10,48
+,http://ec2-52-53-150-0.us-west-1.compute.amazonaws.com:10000,put,22.020143032073975,entropy,32,80,8,10,48
+,http://ec2-54-219-193-198.us-west-1.compute.amazonaws.com:10000,put,22.897192001342773,entropy,32,80,8,10,48
+,http://ec2-13-246-236-43.af-south-1.compute.amazonaws.com:10000,put,22.68309450149536,entropy,32,80,8,10,48
+,http://ec2-13-245-10-216.af-south-1.compute.amazonaws.com:10000,put,22.54858922958374,entropy,32,80,8,10,48
+,http://ec2-18-144-79-42.us-west-1.compute.amazonaws.com:10000,put,22.412588119506836,entropy,32,80,8,10,48
+,http://ec2-15-228-98-221.sa-east-1.compute.amazonaws.com:10000,put,22.90781331062317,entropy,32,80,8,10,48
+,http://ec2-18-228-117-241.sa-east-1.compute.amazonaws.com:10000,put,22.77100706100464,entropy,32,80,8,10,48
+,http://ec2-15-228-228-40.sa-east-1.compute.amazonaws.com:10000,put,23.037269115447998,entropy,32,80,8,10,48
+,http://ec2-54-232-157-32.sa-east-1.compute.amazonaws.com:10000,put,22.0796217918396,entropy,32,80,8,10,48
+,http://ec2-18-228-48-142.sa-east-1.compute.amazonaws.com:10000,put,22.835556983947754,entropy,32,80,8,10,48
+,http://ec2-18-230-17-105.sa-east-1.compute.amazonaws.com:10000,put,22.09714365005493,entropy,32,80,8,10,48
+commit get operation on http://ec2-13-244-118-7.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-246-241-160.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-246-49-6.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-246-241-129.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-162-56-61.ap-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-151-69-115.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-52-53-212-194.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-176-138-235.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-67-37-135.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-245-182-169.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-244-113-18.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-144-6-131.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-176-119-171.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-52-53-150-0.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-219-193-198.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-246-236-43.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-245-10-216.af-south-1.compute.amazonaws.com:10000
+,http://ec2-18-144-81-138.us-west-1.compute.amazonaws.com:10000,put,23.251043558120728,entropy,32,80,8,10,48
+commit get operation on http://ec2-18-144-79-42.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-15-228-98-221.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-228-117-241.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-15-228-228-40.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-232-157-32.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-228-48-142.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-230-17-105.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-54-94-120-28.sa-east-1.compute.amazonaws.com:10000,put,23.337038278579712,entropy,32,80,8,10,48
+,http://ec2-18-231-178-252.sa-east-1.compute.amazonaws.com:10000,put,24.494065761566162,entropy,32,80,8,10,48
+,http://ec2-54-94-15-141.sa-east-1.compute.amazonaws.com:10000,put,23.34208035469055,entropy,32,80,8,10,48
+,http://ec2-18-230-23-164.sa-east-1.compute.amazonaws.com:10000,put,23.581104040145874,entropy,32,80,8,10,48
+,http://ec2-54-233-189-65.sa-east-1.compute.amazonaws.com:10000,put,23.407769203186035,entropy,32,80,8,10,48
+commit get operation on http://ec2-18-144-81-138.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-94-120-28.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-231-178-252.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-94-15-141.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-230-23-164.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-233-189-65.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-54-219-193-198.us-west-1.compute.amazonaws.com:10000,get,5.336942672729492,entropy,32,80,8,10,48
+commit put operation on http://ec2-15-228-185-47.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-3-75-176-24.eu-central-1.compute.amazonaws.com:10000,get,10.496216535568237,entropy,32,80,8,10,48
+,http://ec2-3-79-242-17.eu-central-1.compute.amazonaws.com:10000,get,10.240889310836792,entropy,32,80,8,10,48
+,http://ec2-18-230-23-164.sa-east-1.compute.amazonaws.com:10000,get,6.2152791023254395,entropy,32,80,8,10,48
+commit put operation on http://ec2-13-244-105-240.af-south-1.compute.amazonaws.com:10000
+,http://ec2-3-71-206-104.eu-central-1.compute.amazonaws.com:10000,get,10.686218976974487,entropy,32,80,8,10,48
+,http://ec2-52-59-72-94.eu-central-1.compute.amazonaws.com:10000,get,10.997042179107666,entropy,32,80,8,10,48
+commit put operation on http://ec2-43-198-23-79.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-3-67-175-130.eu-central-1.compute.amazonaws.com:10000,get,10.390728950500488,entropy,32,80,8,10,48
+,http://ec2-18-166-72-192.ap-east-1.compute.amazonaws.com:10000,get,10.86869740486145,entropy,32,80,8,10,48
+,http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000,get,10.130766868591309,entropy,32,80,8,10,48
+,http://ec2-18-166-74-21.ap-east-1.compute.amazonaws.com:10000,get,10.128772735595703,entropy,32,80,8,10,48
+,http://ec2-18-163-118-173.ap-east-1.compute.amazonaws.com:10000,get,10.570428371429443,entropy,32,80,8,10,48
+,http://ec2-18-166-78-64.ap-east-1.compute.amazonaws.com:10000,get,10.55672287940979,entropy,32,80,8,10,48
+commit put operation on http://ec2-54-233-194-85.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000,get,10.911520004272461,entropy,32,80,8,10,48
+,http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000,get,10.586384057998657,entropy,32,80,8,10,48
+,http://ec2-3-66-235-241.eu-central-1.compute.amazonaws.com:10000,get,11.081652164459229,entropy,32,80,8,10,48
+commit put operation on http://ec2-18-228-39-199.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-59-72-94.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-219-193-198.us-west-1.compute.amazonaws.com:10000
+,http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000,get,11.172453880310059,entropy,32,80,8,10,48
+,http://ec2-3-71-16-252.eu-central-1.compute.amazonaws.com:10000,get,10.928763389587402,entropy,32,80,8,10,48
+commit put operation on http://ec2-13-246-14-124.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-166-72-192.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-57-148-216.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-75-176-24.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-35-159-25-96.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-18-162-56-61.ap-east-1.compute.amazonaws.com:10000,get,10.652838230133057,entropy,32,80,8,10,48
+,http://ec2-54-93-178-78.eu-central-1.compute.amazonaws.com:10000,get,11.638160943984985,entropy,32,80,8,10,48
+,http://ec2-3-68-96-40.eu-central-1.compute.amazonaws.com:10000,get,11.618910312652588,entropy,32,80,8,10,48
+,http://ec2-13-244-118-7.af-south-1.compute.amazonaws.com:10000,get,11.097778081893921,entropy,32,80,8,10,48
+,http://ec2-13-246-49-6.af-south-1.compute.amazonaws.com:10000,get,10.921639204025269,entropy,32,80,8,10,48
+,http://ec2-13-246-241-129.af-south-1.compute.amazonaws.com:10000,get,10.967587232589722,entropy,32,80,8,10,48
+,http://ec2-13-246-241-160.af-south-1.compute.amazonaws.com:10000,get,11.14600658416748,entropy,32,80,8,10,48
+,http://ec2-54-151-69-115.us-west-1.compute.amazonaws.com:10000,get,11.401774406433105,entropy,32,80,8,10,48
+commit put operation on http://ec2-18-162-214-53.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-244-103-188.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-231-119-142.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-18-144-6-131.us-west-1.compute.amazonaws.com:10000,get,11.350694417953491,entropy,32,80,8,10,48
+,http://ec2-13-245-10-238.af-south-1.compute.amazonaws.com:10000,get,11.462188720703125,entropy,32,80,8,10,48
+,http://ec2-54-176-119-171.us-west-1.compute.amazonaws.com:10000,get,10.944688320159912,entropy,32,80,8,10,48
+,http://ec2-52-53-150-0.us-west-1.compute.amazonaws.com:10000,get,11.397359132766724,entropy,32,80,8,10,48
+commit put operation on http://ec2-184-72-23-43.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-231-64-240.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-163-115-99.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-16-163-42-122.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-18-144-79-42.us-west-1.compute.amazonaws.com:10000,get,11.544872522354126,entropy,32,80,8,10,48
+commit put operation on http://ec2-54-219-204-243.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-241-64.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-192-100-117.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-163-118-173.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-13-245-182-169.af-south-1.compute.amazonaws.com:10000,get,11.424942255020142,entropy,32,80,8,10,48
+,http://ec2-13-244-113-18.af-south-1.compute.amazonaws.com:10000,get,12.390552997589111,entropy,32,80,8,10,48
+,http://ec2-52-53-212-194.us-west-1.compute.amazonaws.com:10000,get,12.214155197143555,entropy,32,80,8,10,48
+,http://ec2-54-176-138-235.us-west-1.compute.amazonaws.com:10000,get,11.61318826675415,entropy,32,80,8,10,48
+,http://ec2-54-67-37-135.us-west-1.compute.amazonaws.com:10000,get,12.31649661064148,entropy,32,80,8,10,48
+commit put operation on http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-163-41-189.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-68-96-40.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-176-119-171.us-west-1.compute.amazonaws.com:10000
+,http://ec2-13-246-236-43.af-south-1.compute.amazonaws.com:10000,get,11.798943996429443,entropy,32,80,8,10,48
+,http://ec2-54-232-157-32.sa-east-1.compute.amazonaws.com:10000,get,11.901012659072876,entropy,32,80,8,10,48
+,http://ec2-18-228-48-142.sa-east-1.compute.amazonaws.com:10000,get,11.784301280975342,entropy,32,80,8,10,48
+,http://ec2-18-230-17-105.sa-east-1.compute.amazonaws.com:10000,get,11.603700637817383,entropy,32,80,8,10,48
+,http://ec2-18-144-81-138.us-west-1.compute.amazonaws.com:10000,get,10.700294017791748,entropy,32,80,8,10,48
+commit put operation on http://ec2-3-123-254-146.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-13-245-10-216.af-south-1.compute.amazonaws.com:10000,get,12.738794565200806,entropy,32,80,8,10,48
+commit put operation on http://ec2-18-230-23-164.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-166-78-64.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-153-21-102.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-245-2-174.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-244-118-7.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-18-228-188-62.sa-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-16-162-91-155.ap-east-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-71-16-252.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-54-233-147-251.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-15-228-98-221.sa-east-1.compute.amazonaws.com:10000,get,13.045458555221558,entropy,32,80,8,10,48
+,http://ec2-18-228-117-241.sa-east-1.compute.amazonaws.com:10000,get,12.032809495925903,entropy,32,80,8,10,48
+,http://ec2-15-228-228-40.sa-east-1.compute.amazonaws.com:10000,get,11.966644525527954,entropy,32,80,8,10,48
+commit put operation on http://ec2-13-245-10-216.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-53-176-146.us-west-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-13-246-49-6.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-52-67-23-210.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-54-94-120-28.sa-east-1.compute.amazonaws.com:10000,get,12.683854341506958,entropy,32,80,8,10,48
+,http://ec2-54-94-15-141.sa-east-1.compute.amazonaws.com:10000,get,12.209718227386475,entropy,32,80,8,10,48
+,http://ec2-54-233-189-65.sa-east-1.compute.amazonaws.com:10000,get,12.78116750717163,entropy,32,80,8,10,48
+commit put operation on http://ec2-13-244-110-216.af-south-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-79-246-123.eu-central-1.compute.amazonaws.com:10000
+commit put operation on http://ec2-3-120-146-178.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-18-231-178-252.sa-east-1.compute.amazonaws.com:10000,get,13.33152461051941,entropy,32,80,8,10,48
+commit put operation on http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-15-228-185-47.sa-east-1.compute.amazonaws.com:10000,put,22.75251579284668,entropy,32,80,8,10,48
+commit get operation on http://ec2-15-228-185-47.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-43-198-23-79.ap-east-1.compute.amazonaws.com:10000,put,22.1247501373291,entropy,32,80,8,10,48
+,http://ec2-3-75-176-24.eu-central-1.compute.amazonaws.com:10000,put,19.95362091064453,entropy,32,80,8,10,48
+,http://ec2-52-59-72-94.eu-central-1.compute.amazonaws.com:10000,put,21.390758991241455,entropy,32,80,8,10,48
+,http://ec2-52-57-148-216.eu-central-1.compute.amazonaws.com:10000,put,20.369842052459717,entropy,32,80,8,10,48
+commit get operation on http://ec2-43-198-23-79.ap-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-3-75-176-24.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-54-219-193-198.us-west-1.compute.amazonaws.com:10000,put,21.277539491653442,entropy,32,80,8,10,48
+,http://ec2-35-159-25-96.eu-central-1.compute.amazonaws.com:10000,put,21.309261798858643,entropy,32,80,8,10,48
+,http://ec2-18-192-100-117.eu-central-1.compute.amazonaws.com:10000,put,20.164146423339844,entropy,32,80,8,10,48
+commit get operation on http://ec2-52-59-72-94.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-18-162-214-53.ap-east-1.compute.amazonaws.com:10000,put,21.53568744659424,entropy,32,80,8,10,48
+commit get operation on http://ec2-52-57-148-216.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-54-233-194-85.sa-east-1.compute.amazonaws.com:10000,put,22.722540855407715,entropy,32,80,8,10,48
+commit get operation on http://ec2-54-219-193-198.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-35-159-25-96.eu-central-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-192-100-117.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-123-254-146.eu-central-1.compute.amazonaws.com:10000,put,20.004555702209473,entropy,32,80,8,10,48
+,http://ec2-13-244-105-240.af-south-1.compute.amazonaws.com:10000,put,22.63900351524353,entropy,32,80,8,10,48
+,http://ec2-13-246-14-124.af-south-1.compute.amazonaws.com:10000,put,22.36809539794922,entropy,32,80,8,10,48
+,http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000,put,21.433069944381714,entropy,32,80,8,10,48
+,http://ec2-54-219-204-243.us-west-1.compute.amazonaws.com:10000,put,21.279765129089355,entropy,32,80,8,10,48
+,http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000,put,20.808506727218628,entropy,32,80,8,10,48
+,http://ec2-18-228-39-199.sa-east-1.compute.amazonaws.com:10000,put,22.323749780654907,entropy,32,80,8,10,48
+commit get operation on http://ec2-18-162-214-53.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-3-68-96-40.eu-central-1.compute.amazonaws.com:10000,put,20.95933508872986,entropy,32,80,8,10,48
+,http://ec2-13-244-103-188.af-south-1.compute.amazonaws.com:10000,put,22.073588848114014,entropy,32,80,8,10,48
+,http://ec2-54-176-119-171.us-west-1.compute.amazonaws.com:10000,put,21.369346380233765,entropy,32,80,8,10,48
+commit get operation on http://ec2-54-233-194-85.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-3-123-254-146.eu-central-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-244-105-240.af-south-1.compute.amazonaws.com:10000
+,http://ec2-18-166-72-192.ap-east-1.compute.amazonaws.com:10000,put,23.339401721954346,entropy,32,80,8,10,48
+,http://ec2-18-163-115-99.ap-east-1.compute.amazonaws.com:10000,put,22.63128399848938,entropy,32,80,8,10,48
+,http://ec2-184-72-23-43.us-west-1.compute.amazonaws.com:10000,put,21.87191367149353,entropy,32,80,8,10,48
+commit get operation on http://ec2-13-246-14-124.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-219-204-243.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-18-231-119-142.sa-east-1.compute.amazonaws.com:10000,put,21.94446587562561,entropy,32,80,8,10,48
+commit get operation on http://ec2-18-228-39-199.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-3-68-96-40.eu-central-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-244-103-188.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-176-119-171.us-west-1.compute.amazonaws.com:10000
+,http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000,put,21.904816389083862,entropy,32,80,8,10,48
+,http://ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000,put,21.29035472869873,entropy,32,80,8,10,48
+commit get operation on http://ec2-18-166-72-192.ap-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-163-115-99.ap-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-184-72-23-43.us-west-1.compute.amazonaws.com:10000
+,http://ec2-16-163-42-122.ap-east-1.compute.amazonaws.com:10000,put,23.942965507507324,entropy,32,80,8,10,48
+commit get operation on http://ec2-18-231-119-142.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-13-246-241-64.af-south-1.compute.amazonaws.com:10000,put,23.0348379611969,entropy,32,80,8,10,48
+,http://ec2-18-163-118-173.ap-east-1.compute.amazonaws.com:10000,put,23.867572784423828,entropy,32,80,8,10,48
+,http://ec2-13-244-118-7.af-south-1.compute.amazonaws.com:10000,put,22.331448078155518,entropy,32,80,8,10,48
+,http://ec2-54-153-21-102.us-west-1.compute.amazonaws.com:10000,put,22.08423662185669,entropy,32,80,8,10,48
+,http://ec2-13-245-2-174.af-south-1.compute.amazonaws.com:10000,put,21.949193716049194,entropy,32,80,8,10,48
+commit get operation on http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000
+,http://ec2-18-231-64-240.sa-east-1.compute.amazonaws.com:10000,put,23.676163911819458,entropy,32,80,8,10,48
+commit get operation on http://ec2-16-163-42-122.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-18-230-23-164.sa-east-1.compute.amazonaws.com:10000,put,22.950271368026733,entropy,32,80,8,10,48
+commit get operation on http://ec2-13-246-241-64.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-163-118-173.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-18-228-188-62.sa-east-1.compute.amazonaws.com:10000,put,22.72694730758667,entropy,32,80,8,10,48
+,http://ec2-54-233-147-251.sa-east-1.compute.amazonaws.com:10000,put,22.77490758895874,entropy,32,80,8,10,48
+commit get operation on http://ec2-13-244-118-7.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-54-153-21-102.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-245-2-174.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-231-64-240.sa-east-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-230-23-164.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-52-53-176-146.us-west-1.compute.amazonaws.com:10000,put,22.675140857696533,entropy,32,80,8,10,48
+commit get operation on http://ec2-18-228-188-62.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-18-166-78-64.ap-east-1.compute.amazonaws.com:10000,put,24.42891764640808,entropy,32,80,8,10,48
+commit get operation on http://ec2-54-233-147-251.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-3-71-16-252.eu-central-1.compute.amazonaws.com:10000,put,24.818304777145386,entropy,32,80,8,10,48
+commit get operation on http://ec2-52-53-176-146.us-west-1.compute.amazonaws.com:10000
+,http://ec2-13-246-49-6.af-south-1.compute.amazonaws.com:10000,put,23.445836782455444,entropy,32,80,8,10,48
+commit get operation on http://ec2-18-166-78-64.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-18-163-41-189.ap-east-1.compute.amazonaws.com:10000,put,26.149276971817017,entropy,32,80,8,10,48
+commit get operation on http://ec2-3-71-16-252.eu-central-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-246-49-6.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-163-41-189.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-13-244-110-216.af-south-1.compute.amazonaws.com:10000,put,24.926872968673706,entropy,32,80,8,10,48
+,http://ec2-13-245-10-216.af-south-1.compute.amazonaws.com:10000,put,27.313568353652954,entropy,32,80,8,10,48
+,http://ec2-3-79-246-123.eu-central-1.compute.amazonaws.com:10000,put,25.252530336380005,entropy,32,80,8,10,48
+commit get operation on http://ec2-13-244-110-216.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-13-245-10-216.af-south-1.compute.amazonaws.com:10000
+,http://ec2-43-198-23-79.ap-east-1.compute.amazonaws.com:10000,get,10.800994157791138,entropy,32,80,8,10,48
+,http://ec2-16-162-91-155.ap-east-1.compute.amazonaws.com:10000,put,29.987114429473877,entropy,32,80,8,10,48
+commit get operation on http://ec2-3-79-246-123.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-120-146-178.eu-central-1.compute.amazonaws.com:10000,put,27.19699764251709,entropy,32,80,8,10,48
+,http://ec2-18-166-78-64.ap-east-1.compute.amazonaws.com:10000,get,4.80230188369751,entropy,32,80,8,10,48
+,http://ec2-18-192-100-117.eu-central-1.compute.amazonaws.com:10000,get,10.477520942687988,entropy,32,80,8,10,48
+commit put operation on http://ec2-13-246-50-177.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-16-162-91-155.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-3-75-176-24.eu-central-1.compute.amazonaws.com:10000,get,10.977417945861816,entropy,32,80,8,10,48
+,http://ec2-15-228-185-47.sa-east-1.compute.amazonaws.com:10000,get,12.592650175094604,entropy,32,80,8,10,48
+,http://ec2-18-230-23-164.sa-east-1.compute.amazonaws.com:10000,get,6.33977746963501,entropy,32,80,8,10,48
+commit get operation on http://ec2-3-120-146-178.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-54-219-193-198.us-west-1.compute.amazonaws.com:10000,get,11.118642568588257,entropy,32,80,8,10,48
+,http://ec2-52-59-72-94.eu-central-1.compute.amazonaws.com:10000,get,11.04453444480896,entropy,32,80,8,10,48
+,http://ec2-18-162-214-53.ap-east-1.compute.amazonaws.com:10000,get,10.909350395202637,entropy,32,80,8,10,48
+commit put operation on http://ec2-18-144-79-42.us-west-1.compute.amazonaws.com:10000
+,http://ec2-52-57-148-216.eu-central-1.compute.amazonaws.com:10000,get,10.929237604141235,entropy,32,80,8,10,48
+commit put operation on http://ec2-18-162-56-61.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-3-123-254-146.eu-central-1.compute.amazonaws.com:10000,get,10.330183744430542,entropy,32,80,8,10,48
+,http://ec2-35-159-25-96.eu-central-1.compute.amazonaws.com:10000,get,11.019852638244629,entropy,32,80,8,10,48
+commit put operation on http://ec2-15-228-228-40.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-52-67-23-210.sa-east-1.compute.amazonaws.com:10000,put,29.933948040008545,entropy,32,80,8,10,48
+,http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000,get,11.42566442489624,entropy,32,80,8,10,48
+,http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000,put,28.656059503555298,entropy,32,80,8,10,48
+,http://ec2-18-166-72-192.ap-east-1.compute.amazonaws.com:10000,get,10.542290687561035,entropy,32,80,8,10,48
+,http://ec2-54-219-204-243.us-west-1.compute.amazonaws.com:10000,get,11.012473821640015,entropy,32,80,8,10,48
+,http://ec2-54-233-194-85.sa-east-1.compute.amazonaws.com:10000,get,11.814916133880615,entropy,32,80,8,10,48
+,http://ec2-18-163-115-99.ap-east-1.compute.amazonaws.com:10000,get,10.994459390640259,entropy,32,80,8,10,48
+,http://ec2-54-176-119-171.us-west-1.compute.amazonaws.com:10000,get,10.659441709518433,entropy,32,80,8,10,48
+,http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000,get,11.30557107925415,entropy,32,80,8,10,48
+,http://ec2-13-244-105-240.af-south-1.compute.amazonaws.com:10000,get,12.070539236068726,entropy,32,80,8,10,48
+,http://ec2-3-68-96-40.eu-central-1.compute.amazonaws.com:10000,get,11.392830848693848,entropy,32,80,8,10,48
+commit get operation on http://ec2-52-67-23-210.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-13-246-14-124.af-south-1.compute.amazonaws.com:10000,get,11.395967721939087,entropy,32,80,8,10,48
+commit get operation on http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-16-163-42-122.ap-east-1.compute.amazonaws.com:10000,get,10.916207551956177,entropy,32,80,8,10,48
+,http://ec2-13-244-103-188.af-south-1.compute.amazonaws.com:10000,get,11.447812557220459,entropy,32,80,8,10,48
+,http://ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000,get,10.680376529693604,entropy,32,80,8,10,48
+,http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000,get,10.643087148666382,entropy,32,80,8,10,48
+,http://ec2-18-228-39-199.sa-east-1.compute.amazonaws.com:10000,get,12.833639144897461,entropy,32,80,8,10,48
+,http://ec2-184-72-23-43.us-west-1.compute.amazonaws.com:10000,get,12.426973104476929,entropy,32,80,8,10,48
+,http://ec2-13-245-2-174.af-south-1.compute.amazonaws.com:10000,get,11.19165825843811,entropy,32,80,8,10,48
+,http://ec2-18-163-118-173.ap-east-1.compute.amazonaws.com:10000,get,11.06668996810913,entropy,32,80,8,10,48
+,http://ec2-18-231-119-142.sa-east-1.compute.amazonaws.com:10000,get,12.467829704284668,entropy,32,80,8,10,48
+,http://ec2-54-153-21-102.us-west-1.compute.amazonaws.com:10000,get,11.60227632522583,entropy,32,80,8,10,48
+,http://ec2-13-246-241-64.af-south-1.compute.amazonaws.com:10000,get,12.174131155014038,entropy,32,80,8,10,48
+,http://ec2-13-244-118-7.af-south-1.compute.amazonaws.com:10000,get,11.583158493041992,entropy,32,80,8,10,48
+,http://ec2-52-53-176-146.us-west-1.compute.amazonaws.com:10000,get,11.136146545410156,entropy,32,80,8,10,48
+,http://ec2-13-246-49-6.af-south-1.compute.amazonaws.com:10000,get,11.14028024673462,entropy,32,80,8,10,48
+,http://ec2-3-71-16-252.eu-central-1.compute.amazonaws.com:10000,get,11.162104606628418,entropy,32,80,8,10,48
+,http://ec2-18-228-188-62.sa-east-1.compute.amazonaws.com:10000,get,11.954154968261719,entropy,32,80,8,10,48
+,http://ec2-54-233-147-251.sa-east-1.compute.amazonaws.com:10000,get,12.506167650222778,entropy,32,80,8,10,48
+,http://ec2-18-163-41-189.ap-east-1.compute.amazonaws.com:10000,get,11.603458166122437,entropy,32,80,8,10,48
+,http://ec2-18-231-64-240.sa-east-1.compute.amazonaws.com:10000,get,13.35463547706604,entropy,32,80,8,10,48
+,http://ec2-3-79-246-123.eu-central-1.compute.amazonaws.com:10000,get,10.70382022857666,entropy,32,80,8,10,48
+,http://ec2-13-244-110-216.af-south-1.compute.amazonaws.com:10000,get,11.968307256698608,entropy,32,80,8,10,48
+,http://ec2-13-245-10-216.af-south-1.compute.amazonaws.com:10000,get,11.478540897369385,entropy,32,80,8,10,48
+,http://ec2-16-162-91-155.ap-east-1.compute.amazonaws.com:10000,get,11.179058074951172,entropy,32,80,8,10,48
+,http://ec2-3-120-146-178.eu-central-1.compute.amazonaws.com:10000,get,11.162971019744873,entropy,32,80,8,10,48
+,http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000,get,10.15785551071167,entropy,32,80,8,10,48
+,http://ec2-52-67-23-210.sa-east-1.compute.amazonaws.com:10000,get,12.340921878814697,entropy,32,80,8,10,48
+,http://ec2-18-144-79-42.us-west-1.compute.amazonaws.com:10000,put,21.69549298286438,entropy,32,80,8,10,48
+,http://ec2-18-162-56-61.ap-east-1.compute.amazonaws.com:10000,put,21.954709768295288,entropy,32,80,8,10,48
+commit get operation on http://ec2-18-144-79-42.us-west-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-18-162-56-61.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-13-246-50-177.af-south-1.compute.amazonaws.com:10000,put,23.37511944770813,entropy,32,80,8,10,48
+,http://ec2-15-228-228-40.sa-east-1.compute.amazonaws.com:10000,put,22.624162435531616,entropy,32,80,8,10,48
+commit get operation on http://ec2-13-246-50-177.af-south-1.compute.amazonaws.com:10000
+commit get operation on http://ec2-15-228-228-40.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-18-162-56-61.ap-east-1.compute.amazonaws.com:10000,get,10.724401235580444,entropy,32,80,8,10,48
+,http://ec2-18-144-79-42.us-west-1.compute.amazonaws.com:10000,get,11.589517593383789,entropy,32,80,8,10,48
+,http://ec2-13-246-50-177.af-south-1.compute.amazonaws.com:10000,get,12.008661985397339,entropy,32,80,8,10,48
+,http://ec2-15-228-228-40.sa-east-1.compute.amazonaws.com:10000,get,12.463858366012573,entropy,32,80,8,10,48

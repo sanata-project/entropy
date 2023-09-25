@@ -1,0 +1,19 @@
+comment,key,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent,num_participant
+++ python3 scripts/common.py SERVICE_HOST
++ SERVICE=ec2-16-162-3-6.ap-east-1.compute.amazonaws.com
+++ python3 scripts/common.py WORK_DIR
++ WORK_DIR=/home/ubuntu
++ cargo build --profile artifact --bin entropy --color never
+    Finished artifact [optimized] target(s) in 0.11s
++ rsync target/artifact/entropy ec2-16-162-3-6.ap-east-1.compute.amazonaws.com:/home/ubuntu/entropy
+++ python3 scripts/common.py NUM_TOTAL_PEER
++ ssh ec2-16-162-3-6.ap-east-1.compute.amazonaws.com OTEL_SDK_DISABLED=true /home/ubuntu/entropy ec2-16-162-3-6.ap-east-1.compute.amazonaws.com --plaza-service 5000
+ready
+,864b98c4dbf5b653d2a240be2e4864aa0a0a374024338c54330efd9026397197,repair,1.8648797,kademlia,32,80,8,10,8,5000
+,96476893907b69ed4c565e50dca6f15f7c31279c5e737f0d04738ff3675757eb,repair,2.8715138,kademlia,32,80,8,10,8,5000
+,9cd40a90c42a16b6875daa02032023e628aafbe0676bc956ab10dc4357b776dc,repair,2.0618014,kademlia,32,80,8,10,8,5000
+,6ab7d720fade2b2c6b6cc4a2fbda708d2b59c44a13a5f43bd103799bb1065fac,repair,2.0611465,kademlia,32,80,8,10,8,5000
+,bb5f3d6dd6d014754f1b588c15515440516af16b0fdcddd888c6574ae62b7d04,repair,2.4217947,kademlia,32,80,8,10,8,5000
+,0b5581006ccb3304ac6a92950344515314aa4263f637b42f95d9f9978901de2f,repair,2.432479,kademlia,32,80,8,10,8,5000
+,ea30ae739cb709428a687dc7960fe57f7cd85553a1de003ba3b8b1cf2effee8a,repair,3.4525967,kademlia,32,80,8,10,8,5000
+,57d4367c0d90c4f367d53246256eab056e0d18e428a4ddb630a1ff12d39e6359,repair,3.6539054,kademlia,32,80,8,10,8,5000

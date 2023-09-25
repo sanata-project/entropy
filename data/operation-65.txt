@@ -1,0 +1,31 @@
+comment,key,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent
+++ python3 scripts/common.py SERVICE_HOST
++ SERVICE=ec2-16-162-3-6.ap-east-1.compute.amazonaws.com
+++ python3 scripts/common.py WORK_DIR
++ WORK_DIR=/home/ubuntu
++ cargo build --profile artifact --bin entropy --color never
+    Finished artifact [optimized] target(s) in 0.11s
++ rsync target/artifact/entropy ec2-16-162-3-6.ap-east-1.compute.amazonaws.com:/home/ubuntu/entropy
+++ python3 scripts/common.py NUM_TOTAL_PEER
++ ssh ec2-16-162-3-6.ap-east-1.compute.amazonaws.com OTEL_SDK_DISABLED=true /home/ubuntu/entropy ec2-16-162-3-6.ap-east-1.compute.amazonaws.com --plaza-service 10000
+ready
+,ecbe2191757ddeadc4bcc3e588b9548cf8512e6b894238cdf75400f647d26229,repair,3.1096408,kademlia,32,80,8,10,2
+,b23baf1b17585f9b854a9abc1cc4297cc09f31d815126ff57109c1f0d6a5e324,repair,3.2230928,kademlia,32,80,8,10,2
+,b23baf1b17585f9b854a9abc1cc4297cc09f31d815126ff57109c1f0d6a5e324,repair,0.02166961,kademlia,32,80,8,10,2
+,ecbe2191757ddeadc4bcc3e588b9548cf8512e6b894238cdf75400f647d26229,repair,1.8195357,kademlia,32,80,8,10,2
+,b23baf1b17585f9b854a9abc1cc4297cc09f31d815126ff57109c1f0d6a5e324,repair,1.9116228,kademlia,32,80,8,10,2
+,ecbe2191757ddeadc4bcc3e588b9548cf8512e6b894238cdf75400f647d26229,repair,1.7977352,kademlia,32,80,8,10,2
+,b23baf1b17585f9b854a9abc1cc4297cc09f31d815126ff57109c1f0d6a5e324,repair,0.026969368,kademlia,32,80,8,10,2
+,ecbe2191757ddeadc4bcc3e588b9548cf8512e6b894238cdf75400f647d26229,repair,2.6205626,kademlia,32,80,8,10,2
+,b23baf1b17585f9b854a9abc1cc4297cc09f31d815126ff57109c1f0d6a5e324,repair,0.022028793,kademlia,32,80,8,10,2
+,ecbe2191757ddeadc4bcc3e588b9548cf8512e6b894238cdf75400f647d26229,repair,3.463206,kademlia,32,80,8,10,2
+,ecbe2191757ddeadc4bcc3e588b9548cf8512e6b894238cdf75400f647d26229,repair,0.021025794,kademlia,32,80,8,10,2
+,b23baf1b17585f9b854a9abc1cc4297cc09f31d815126ff57109c1f0d6a5e324,repair,1.7513492,kademlia,32,80,8,10,2
+,ecbe2191757ddeadc4bcc3e588b9548cf8512e6b894238cdf75400f647d26229,repair,2.4101038,kademlia,32,80,8,10,2
+,b23baf1b17585f9b854a9abc1cc4297cc09f31d815126ff57109c1f0d6a5e324,repair,2.2564924,kademlia,32,80,8,10,2
+,ecbe2191757ddeadc4bcc3e588b9548cf8512e6b894238cdf75400f647d26229,repair,0.02493378,kademlia,32,80,8,10,2
+,b23baf1b17585f9b854a9abc1cc4297cc09f31d815126ff57109c1f0d6a5e324,repair,1.8631167,kademlia,32,80,8,10,2
+,b23baf1b17585f9b854a9abc1cc4297cc09f31d815126ff57109c1f0d6a5e324,repair,0.021710854,kademlia,32,80,8,10,2
+,ecbe2191757ddeadc4bcc3e588b9548cf8512e6b894238cdf75400f647d26229,repair,1.6672689,kademlia,32,80,8,10,2
+,b23baf1b17585f9b854a9abc1cc4297cc09f31d815126ff57109c1f0d6a5e324,repair,1.7529854,kademlia,32,80,8,10,2
+,ecbe2191757ddeadc4bcc3e588b9548cf8512e6b894238cdf75400f647d26229,repair,2.4309359,kademlia,32,80,8,10,2

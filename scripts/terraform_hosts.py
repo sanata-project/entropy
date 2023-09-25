@@ -1,7 +1,7 @@
 from subprocess import run, PIPE
 from json import loads
 
-print("service ", end="", flush=True)
+print("#service ", end="", flush=True)
 run("terraform -chdir=terraform output -raw service", shell=True, check=True)
 print()
 for host in loads(

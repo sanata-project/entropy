@@ -2,7 +2,7 @@ use std::panic;
 
 use actix_web::{get, post, App, HttpResponse, HttpServer};
 use opentelemetry::{
-    global::{set_text_map_propagator, shutdown_tracer_provider},
+    global::shutdown_tracer_provider,
     trace::{get_active_span, Status},
 };
 use tokio::task::spawn_blocking;
@@ -20,7 +20,9 @@ async fn crash() -> HttpResponse {
 
 #[actix_web::main]
 async fn main() {
-    set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
+    opentelemetry::global::set_text_map_propagator(
+        opentelemetry::sdk::propagation::TraceContextPropagator::new(),
+    );
     let otlp_exporter = opentelemetry_otlp::new_exporter().tonic();
     let tracer = opentelemetry_otlp::new_pipeline()
         .tracing()

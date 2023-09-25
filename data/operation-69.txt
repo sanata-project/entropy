@@ -1,0 +1,15 @@
+comment,peer,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent,num_participant
+00 commit put operation on http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000,put,24.758721351623535,entropy,16,40,8,10,1,10000
+00 commit get operation on http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000,get,13.908740043640137,entropy,16,40,8,10,1,10000
+01 commit put operation on http://ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000
+,http://ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000,put,24.371018409729004,entropy,16,40,8,10,1,10000
+01 commit get operation on http://ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000
+,http://ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000,get,11.22963571548462,entropy,16,40,8,10,1,10000
+02 commit put operation on http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000
+,http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000,put,25.497620820999146,entropy,16,40,8,10,1,10000
+02 commit get operation on http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000
+,http://ec2-52-53-249-203.us-west-1.compute.amazonaws.com:10000,get,11.965019941329956,entropy,16,40,8,10,1,10000
+03 commit put operation on http://ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000
+Cannot connect to host ec2-3-101-25-224.us-west-1.compute.amazonaws.com:10000 ssl:default [Connect call failed ('3.101.25.224', 10000)]
