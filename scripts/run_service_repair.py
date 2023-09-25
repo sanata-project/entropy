@@ -35,5 +35,5 @@ async def run_service():
 
 
 if __name__ == "__main__":
-    print("comment,key,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent")
+    print("comment,key,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent")
     asyncio.run(run_service())

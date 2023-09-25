@@ -1,0 +1,15 @@
+comment,key,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent
+++ python3 scripts/common.py SERVICE_HOST
++ SERVICE=ec2-16-162-3-6.ap-east-1.compute.amazonaws.com
+++ python3 scripts/common.py WORK_DIR
++ WORK_DIR=/home/ubuntu
++ cargo build --profile artifact --bin entropy --color never
+    Finished artifact [optimized] target(s) in 0.11s
++ rsync target/artifact/entropy ec2-16-162-3-6.ap-east-1.compute.amazonaws.com:/home/ubuntu/entropy
+++ python3 scripts/common.py NUM_TOTAL_PEER
++ ssh ec2-16-162-3-6.ap-east-1.compute.amazonaws.com OTEL_SDK_DISABLED=true /home/ubuntu/entropy ec2-16-162-3-6.ap-east-1.compute.amazonaws.com --plaza-service 10000
+ready
+,70a03ceebb5b56abcaa13d780e7addf6fd4f91739b1e8fb9650194fc4618374a,repair,2.9958138,entropy,32,80,8,10,2
+,693caab160f1d99f2ff5da4caf2e4681ea21d28717fd0695966c2b1d92846b19,repair,4.44329,entropy,32,80,8,10,2
+,693caab160f1d99f2ff5da4caf2e4681ea21d28717fd0695966c2b1d92846b19,repair,2.9172466,entropy,32,80,8,10,2
+,693caab160f1d99f2ff5da4caf2e4681ea21d28717fd0695966c2b1d92846b19,repair,3.940308,entropy,32,80,8,10,2

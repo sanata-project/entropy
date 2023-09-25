@@ -2,22 +2,16 @@ import asyncio
 import aiohttp
 import sys
 
-from common import (
-    SERVICE as PLAZA,
-    OUTER_N,
-    INNER_K,
-    OUTER_K,
-    PROTOCOL,
-    NUM_OPERATION,
-    REPAIR_CONCURRENCY,
-)
+from common import SERVICE as PLAZA, REPAIR_CONCURRENCY, NUM_OPERATION
 
 ARGV = dict(enumerate(sys.argv))
 NUM_ROUND = int(ARGV.get(1, "1"))
 
 
 async def ready():
-    proc = await asyncio.create_subprocess_shell(f"python3 scripts/put_get.py")
+    proc = await asyncio.create_subprocess_shell(
+        f"python3 scripts/put_get.py {NUM_OPERATION}"
+    )
     assert await proc.wait() == 0
 
 
@@ -28,7 +22,7 @@ async def repair(num_round):
             async with session.post(f"{PLAZA}/repair") as resp:
                 assert resp.status == 200
             result = 0
-            while result < REPAIR_CONCURRENCY * NUM_ROUND:
+            while result < REPAIR_CONCURRENCY * NUM_OPERATION * (n + 1):
                 await asyncio.sleep(1)
                 async with session.get(f"{PLAZA}/repair/finish") as resp:
                     result = await resp.json()

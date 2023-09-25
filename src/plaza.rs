@@ -94,7 +94,7 @@ pub async fn repair_finish(data: Data<State>, message: Bytes) -> HttpResponse {
         .deserialize::<RepairFinishMessage>(&message)
         .unwrap();
     println!(
-        ",{},{}",
+        ",{},repair,{}",
         crate::common::hex_string(&message.key),
         message.duration.as_secs_f32()
     );

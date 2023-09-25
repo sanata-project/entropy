@@ -36,7 +36,7 @@ REPAIR_CONCURRENCY = 2
 assert REPAIR_CONCURRENCY >= 2
 if PROTOCOL == "entropy":
     assert REPAIR_CONCURRENCY <= OUTER_K
-NUM_OPERATION = 10
+NUM_OPERATION = 1
 
 if __name__ == "__main__":
     print(globals()[argv[1]])
