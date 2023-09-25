@@ -19,8 +19,8 @@ NUM_HOST_PEER = 100
 NUM_HOST_BENCHMARK_PEER = 1
 NUM_TOTAL_PEER = NUM_HOST_PEER * len(HOSTS)
 
-INNER_K = 48
-INNER_N = 120
+INNER_K = 32
+INNER_N = 80
 OUTER_K = 8
 OUTER_N = 10
 FRAGMENT_SIZE = int((1 << 30) / INNER_K / OUTER_K)
@@ -34,7 +34,9 @@ FRAGMENT_SIZE = int((1 << 30) / INNER_K / OUTER_K)
 PROTOCOL = "kademlia"
 REPAIR_CONCURRENCY = 2
 assert REPAIR_CONCURRENCY >= 2
-NUM_OPERATION = 1
+if PROTOCOL == "entropy":
+    assert REPAIR_CONCURRENCY <= OUTER_K
+NUM_OPERATION = 10
 
 if __name__ == "__main__":
     print(globals()[argv[1]])

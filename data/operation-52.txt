@@ -1,0 +1,41 @@
+comment,peer,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent
+00 commit put operation on http://ec2-13-244-103-188.af-south-1.compute.amazonaws.com:10000
+,http://ec2-13-244-103-188.af-south-1.compute.amazonaws.com:10000,put,12.357066631317139,kademlia,32,80,8,10,1
+00 commit get operation on http://ec2-13-244-103-188.af-south-1.compute.amazonaws.com:10000
+,http://ec2-13-244-103-188.af-south-1.compute.amazonaws.com:10000,get,13.469936847686768,kademlia,32,80,8,10,1
+01 commit put operation on http://ec2-13-246-236-43.af-south-1.compute.amazonaws.com:10000
+,http://ec2-13-246-236-43.af-south-1.compute.amazonaws.com:10000,put,12.222491979598999,kademlia,32,80,8,10,1
+01 commit get operation on http://ec2-13-246-236-43.af-south-1.compute.amazonaws.com:10000
+,http://ec2-13-246-236-43.af-south-1.compute.amazonaws.com:10000,get,12.612395286560059,kademlia,32,80,8,10,1
+02 commit put operation on http://ec2-54-153-21-102.us-west-1.compute.amazonaws.com:10000
+,http://ec2-54-153-21-102.us-west-1.compute.amazonaws.com:10000,put,13.96828293800354,kademlia,32,80,8,10,1
+02 commit get operation on http://ec2-54-153-21-102.us-west-1.compute.amazonaws.com:10000
+,http://ec2-54-153-21-102.us-west-1.compute.amazonaws.com:10000,get,12.859090328216553,kademlia,32,80,8,10,1
+03 commit put operation on http://ec2-3-76-220-144.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-76-220-144.eu-central-1.compute.amazonaws.com:10000,put,14.880370616912842,kademlia,32,80,8,10,1
+03 commit get operation on http://ec2-3-76-220-144.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-76-220-144.eu-central-1.compute.amazonaws.com:10000,get,10.36206340789795,kademlia,32,80,8,10,1
+04 commit put operation on http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000,put,12.638319730758667,kademlia,32,80,8,10,1
+04 commit get operation on http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000,get,15.898874998092651,kademlia,32,80,8,10,1
+05 commit put operation on http://ec2-18-228-48-142.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-18-228-48-142.sa-east-1.compute.amazonaws.com:10000,put,15.668447017669678,kademlia,32,80,8,10,1
+05 commit get operation on http://ec2-18-228-48-142.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-18-228-48-142.sa-east-1.compute.amazonaws.com:10000,get,14.99151086807251,kademlia,32,80,8,10,1
+06 commit put operation on http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000
+,http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000,put,15.921003818511963,kademlia,32,80,8,10,1
+06 commit get operation on http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000
+,http://ec2-54-215-211-165.us-west-1.compute.amazonaws.com:10000,get,12.0133798122406,kademlia,32,80,8,10,1
+07 commit put operation on http://ec2-3-120-146-178.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-120-146-178.eu-central-1.compute.amazonaws.com:10000,put,10.34482216835022,kademlia,32,80,8,10,1
+07 commit get operation on http://ec2-3-120-146-178.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-120-146-178.eu-central-1.compute.amazonaws.com:10000,get,10.248922348022461,kademlia,32,80,8,10,1
+08 commit put operation on http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000,put,8.9757399559021,kademlia,32,80,8,10,1
+08 commit get operation on http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-79-94-180.eu-central-1.compute.amazonaws.com:10000,get,12.062020778656006,kademlia,32,80,8,10,1
+09 commit put operation on http://ec2-3-76-220-144.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-76-220-144.eu-central-1.compute.amazonaws.com:10000,put,15.772884845733643,kademlia,32,80,8,10,1
+09 commit get operation on http://ec2-3-76-220-144.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-76-220-144.eu-central-1.compute.amazonaws.com:10000,get,11.782983779907227,kademlia,32,80,8,10,1

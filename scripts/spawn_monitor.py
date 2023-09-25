@@ -24,8 +24,9 @@ if "--repair" in EXTRA_ARGS:
     if PROTOCOL == "entropy":
         OUTER_K = OUTER_N = REPAIR_CONCURRENCY
     if PROTOCOL == "kademlia":
-        INNER_K = INNER_N = 1
-        OUTER_K = OUTER_N = REPAIR_CONCURRENCY
+        INNER_K = INNER_N = max(REPAIR_CONCURRENCY // OUTER_K, 1)
+        OUTER_K = OUTER_N = REPAIR_CONCURRENCY // INNER_K
+        assert INNER_K * OUTER_K == REPAIR_CONCURRENCY
 
 
 async def run_peers():
