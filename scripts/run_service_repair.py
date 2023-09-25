@@ -9,6 +9,7 @@ from common import (
     REPAIR_CONCURRENCY,
     PROTOCOL,
     NUM_OPERATION,
+    NUM_TOTAL_PEER,
 )
 
 ARGV = dict(enumerate(sys.argv))
@@ -27,7 +28,7 @@ async def run_service():
         if line.startswith(","):
             print(
                 line
-                + f",{PROTOCOL},{INNER_K},{INNER_N},{OUTER_K},{OUTER_N},{num_concurrency}"
+                + f",{PROTOCOL},{INNER_K},{INNER_N},{OUTER_K},{OUTER_N},{num_concurrency},{NUM_TOTAL_PEER}"
             )
         else:
             print(line)
@@ -35,5 +36,7 @@ async def run_service():
 
 
 if __name__ == "__main__":
-    print("comment,key,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent")
+    print(
+        "comment,key,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent,num_participant"
+    )
     asyncio.run(run_service())
