@@ -2,7 +2,7 @@ import asyncio
 import aiohttp
 import sys
 
-from common import SERVICE as PLAZA, OUTER_N
+from common import SERVICE as PLAZA, OUTER_N, INNER_K, OUTER_K
 
 ARGV = dict(enumerate(sys.argv))
 PROTOCOL = ARGV.get(1, "entropy")
@@ -33,7 +33,11 @@ async def repair(num_round, num_repair):
 
 async def main():
     await ready()
-    await repair(NUM_ROUND, NUM_OPERATION * OUTER_N)
+    if PROTOCOL == 'entropy':
+        num_repair = NUM_OPERATION * OUTER_N
+    if PROTOCOL == 'kademlia':
+        num_repair = NUM_OPERATION * INNER_K * OUTER_K
+    await repair(NUM_ROUND, num_repair)
 
 
 if __name__ == "__main__":

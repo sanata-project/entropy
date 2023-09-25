@@ -53,6 +53,7 @@ pub struct State {
     benchmarks: Mutex<Vec<Arc<Mutex<StateBenchmark>>>>,
     upload_chunk_states: Arc<Mutex<HashMap<ChunkKey, UploadChunkState>>>,
     chunk_states: Arc<Mutex<HashMap<ChunkKey, ChunkState>>>,
+    parts: Arc<Mutex<HashSet<[u8; 32]>>>,
     peer_store: Arc<Mutex<peer::Store>>,
 }
 
@@ -126,6 +127,7 @@ impl State {
             benchmarks: Default::default(),
             upload_chunk_states: Default::default(),
             chunk_states: Default::default(),
+            parts: Default::default(),
             peer_store: Arc::new(Mutex::new(peer_store)),
         }
     }
@@ -147,7 +149,8 @@ impl State {
             .service(entropy_repair_push)
             .service(entropy_repair_up)
             .service(kademlia_upload_push)
-            .service(kademlia_download_pull);
+            .service(kademlia_download_pull)
+            .service(kademlia_repair_push);
     }
 }
 
@@ -787,6 +790,7 @@ async fn kademlia_upload_push(
     part_id: Path<String>,
     part: Bytes,
 ) -> impl Responder {
+    data.parts.lock().unwrap().insert(parse_key(&part_id));
     tokio::fs::write(data.config.chunk_path.join(part_id.into_inner()), part)
         .await
         .unwrap();
@@ -884,7 +888,7 @@ async fn kademlia_download_pull(data: Data<State>, part_id: Path<String>) -> imp
 }
 
 impl State {
-    pub fn repair(&self, repair_finish: mpsc::UnboundedSender<[u8; 32]>) {
+    pub fn repair(&self, repair_epoch: u32, repair_finish: mpsc::UnboundedSender<[u8; 32]>) {
         let mut chunk_states = self.chunk_states.lock().unwrap();
         for chunk_key in Vec::from_iter(chunk_states.keys().copied()) {
             let chunk_state = chunk_states.get_mut(&chunk_key).unwrap();
@@ -940,6 +944,50 @@ impl State {
                         "{:?}",
                         response.body().await
                     );
+                });
+            }
+        }
+        drop(chunk_states);
+
+        let mut parts = self.parts.lock().unwrap();
+        for part_id in parts.clone() {
+            let peers = Vec::from_iter(
+                self.peer_store
+                    .lock()
+                    .unwrap()
+                    .closest_peers(&part_id, (repair_epoch + 4) as usize)
+                    .into_iter()
+                    .skip(repair_epoch as usize)
+                    .cloned(),
+            );
+            assert!(peers.iter().any(|peer| peer.id == self.config.peer.id));
+            if peers[0].id == self.config.peer.id {
+                parts.remove(&part_id);
+                let config = self.config.clone();
+                let repair_finish = repair_finish.clone();
+                spawn(&self.pool, move || async move {
+                    let hex_id = hex_string(&part_id);
+                    let path = config.chunk_path.join(&hex_id);
+                    let part = tokio::fs::read(&path).await.unwrap();
+                    tokio::fs::remove_file(&path).await.unwrap();
+                    let mut response = Client::builder()
+                        .disable_timeout()
+                        .finish()
+                        .post(format!(
+                            "{}/kademlia/repair/push/{hex_id}",
+                            peers.last().unwrap().uri
+                        ))
+                        .trace_request()
+                        .send_body(part)
+                        .await
+                        .unwrap();
+                    assert_eq!(
+                        response.status(),
+                        StatusCode::OK,
+                        "{:?}",
+                        response.body().await
+                    );
+                    repair_finish.send(part_id).unwrap();
                 });
             }
         }
@@ -1177,5 +1225,19 @@ async fn entropy_repair_up(
             repair_finish.send(chunk_key).unwrap();
         }
     }
+    HttpResponse::Ok()
+}
+
+#[post("/kademlia/repair/push/{part_id}")]
+async fn kademlia_repair_push(
+    data: Data<State>,
+    part_id: Path<String>,
+    part: Bytes,
+) -> impl Responder {
+    let inserted = data.parts.lock().unwrap().insert(parse_key(&part_id));
+    assert!(inserted);
+    tokio::fs::write(data.config.chunk_path.join(&*part_id), part)
+        .await
+        .unwrap();
     HttpResponse::Ok()
 }

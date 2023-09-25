@@ -56,10 +56,7 @@ fn main() {
 
     if let Some(num_participant) = cli.plaza_service {
         let shutdown = CancellationToken::new();
-        let state = Data::new(plaza::State::new(
-            num_participant,
-            shutdown.clone(),
-        ));
+        let state = Data::new(plaza::State::new(num_participant, shutdown.clone()));
         let server = HttpServer::new(move || {
             App::new()
                 .wrap(actix_web_opentelemetry::RequestTracing::new())
@@ -247,7 +244,7 @@ async fn plaza_session(
         if status.repair > repair_epoch {
             let start = Instant::now();
             let mut repair_finish = mpsc::unbounded_channel();
-            state.repair(repair_finish.0);
+            state.repair(repair_epoch, repair_finish.0);
             let repair_finish_uri = format!("{plaza}/repair/finish");
             pool.spawn_pinned(move || async move {
                 let client = awc::Client::new();

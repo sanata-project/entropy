@@ -57,11 +57,12 @@ impl Store {
             .binary_search_by_key(target, |peer| peer.id)
             .unwrap_or_else(identity);
         let mut candidates = Vec::from_iter(
-            (pos.saturating_sub(count)..(pos + count).min(self.peers.len()))
+            // (pos.saturating_sub(count)..(pos + count).min(self.peers.len()))
+            (pos.saturating_sub(10)..(pos + 10).min(self.peers.len()))
                 .map(|i| &self.peers[i]),
         );
+        candidates.sort_by_key(|peer| Reverse(common_prefix_length(&peer.id, target)));
         if candidates.len() > count {
-            candidates.sort_unstable_by_key(|peer| Reverse(common_prefix_length(&peer.id, target)));
             candidates.truncate(count);
         }
         candidates
