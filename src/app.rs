@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     iter::repeat,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -24,7 +24,9 @@ use tokio::{sync::mpsc, task::JoinSet};
 use tokio_util::{sync::CancellationToken, task::LocalPoolHandle};
 use wirehair::{WirehairDecoder, WirehairEncoder};
 
-use crate::{common::hex_string, peer, ChunkKey, Peer};
+use crate::{common::hex_string, peer, Peer};
+
+type ChunkKey = [u8; 32];
 
 fn fragment_id(key: &ChunkKey, index: u32) -> [u8; 32] {
     Sha256::new()
@@ -84,6 +86,8 @@ struct StateBenchmark {
     get_end: Option<SystemTime>,
     #[serde(skip)]
     chunk_keys: Vec<ChunkKey>,
+    #[serde(skip)]
+    part_ids: HashMap<u32, [u8; 32]>,
 }
 
 #[derive(Debug, Clone)]
@@ -131,7 +135,9 @@ impl State {
             .service(entropy_upload_push)
             .service(entropy_upload_members)
             .service(entropy_upload_up)
-            .service(entropy_download_pull);
+            .service(entropy_download_pull)
+            .service(kademlia_upload_push)
+            .service(kademlia_download_pull);
     }
 }
 
@@ -149,33 +155,56 @@ fn spawn<F: std::future::Future<Output = T> + 'static, T: Send + 'static>(
     pool.spawn_pinned(move || create().with_context(context))
 }
 
-#[post("/benchmark/entropy")]
-async fn benchmark_entropy(data: Data<State>) -> impl Responder {
+#[post("/benchmark/{protocol}")]
+async fn benchmark_entropy(data: Data<State>, protocol: Path<String>) -> impl Responder {
     let mut benchmarks = data.benchmarks.lock().unwrap();
     let id = benchmarks.len();
     let benchmark = Arc::new(Mutex::new(StateBenchmark::default()));
     benchmarks.push(benchmark.clone());
 
-    let upload_chunk_states = data.upload_chunk_states.clone();
     let peer_store = data.peer_store.clone();
     let config = data.config.clone();
     let pool = data.pool.clone();
-    spawn(&data.pool, move || {
-        entropy_put(benchmark, upload_chunk_states, peer_store, config, pool)
-    });
+    match &**protocol {
+        "entropy" => {
+            let upload_chunk_states = data.upload_chunk_states.clone();
+            spawn(&data.pool, move || {
+                entropy_put(benchmark, upload_chunk_states, peer_store, config, pool)
+            });
+        }
+        "kademlia" => {
+            spawn(&data.pool, move || {
+                kademlia_put(benchmark, peer_store, config, pool)
+            });
+        }
+        _ => unimplemented!(),
+    }
+
     Json(id)
 }
 
-#[post("/benchmark/entropy/{index}/get")]
-async fn benchmark_entropy_get(data: Data<State>, index: Path<usize>) -> impl Responder {
+#[post("/benchmark/{index}/{protocol}/get")]
+async fn benchmark_entropy_get(data: Data<State>, path: Path<(usize, String)>) -> impl Responder {
+    let (index, protocol) = path.into_inner();
     let benchmarks = data.benchmarks.lock().unwrap();
-    let benchmark = benchmarks[index.into_inner()].clone();
-    let upload_chunk_states = data.upload_chunk_states.clone();
-    let config = data.config.clone();
+    let benchmark = benchmarks[index].clone();
     let pool = data.pool.clone();
-    spawn(&data.pool, move || {
-        entropy_get(benchmark, upload_chunk_states, config, pool)
-    });
+    match &*protocol {
+        "entropy" => {
+            let upload_chunk_states = data.upload_chunk_states.clone();
+            let config = data.config.clone();
+            spawn(&data.pool, move || {
+                entropy_get(benchmark, upload_chunk_states, config, pool)
+            })
+        }
+        "kademlia" => {
+            let peer_store = data.peer_store.clone();
+            spawn(&data.pool, move || {
+                kademlia_get(benchmark, peer_store, pool)
+            })
+        }
+        _ => unimplemented!(),
+    };
     HttpResponse::Ok()
 }
 
@@ -662,4 +691,170 @@ async fn entropy_download_pull(data: Data<State>, path: Path<(String, u32)>) -> 
     let fragment = tokio::fs::read(&path).await.unwrap();
     tokio::fs::remove_file(&path).await.unwrap();
     fragment
+}
+
+async fn kademlia_put(
+    benchmark: Arc<Mutex<StateBenchmark>>,
+    peer_store: Arc<Mutex<peer::Store>>,
+    config: Arc<StateConfig>,
+    pool: LocalPoolHandle,
+) {
+    let mut object = vec![0; config.object_size() as usize];
+    rand::thread_rng().fill_bytes(&mut object);
+    let object_hash = Sha256::digest(&object);
+    {
+        let mut benchmark = benchmark.lock().unwrap();
+        benchmark.object_hash = object_hash.into();
+        benchmark.put_start = Some(SystemTime::now());
+    }
+
+    let object = Bytes::from(object);
+    let upload_parts = Vec::from_iter(
+        (0..config.inner_k * config.outer_k)
+            .zip(repeat((peer_store, benchmark.clone())))
+            .map(|(part_index, (peer_store, benchmark))| {
+                let part = object.slice(
+                    (part_index * config.fragment_size) as usize
+                        ..((part_index + 1) * config.fragment_size) as usize,
+                );
+                spawn(&pool, move || async move {
+                    let part_id = Sha256::digest(&part).into();
+                    benchmark
+                        .lock()
+                        .unwrap()
+                        .part_ids
+                        .insert(part_index, part_id);
+                    let peers = Vec::from_iter(
+                        peer_store
+                            .lock()
+                            .unwrap()
+                            .closest_peers(&part_id, 3)
+                            .into_iter()
+                            .cloned(),
+                    );
+                    for peer in peers {
+                        let mut response = Client::new()
+                            .post(format!(
+                                "{}/kademlia/upload/push/{}",
+                                peer.uri,
+                                hex_string(&part_id)
+                            ))
+                            .send_body(part.clone())
+                            .await
+                            .unwrap();
+                        assert_eq!(
+                            response.status(),
+                            StatusCode::OK,
+                            "{:?}",
+                            response.body().await
+                        );
+                    }
+                })
+            }),
+    );
+    for upload_part in upload_parts {
+        upload_part.await.unwrap();
+    }
+    let mut benchmark = benchmark.lock().unwrap();
+    benchmark.put_end = Some(SystemTime::now());
+}
+
+#[post("/kademlia/upload/push/{part_id}")]
+async fn kademlia_upload_push(
+    data: Data<State>,
+    part_id: Path<String>,
+    part: Bytes,
+) -> impl Responder {
+    tokio::fs::write(data.config.chunk_path.join(part_id.into_inner()), part)
+        .await
+        .unwrap();
+    HttpResponse::Ok()
+}
+
+async fn kademlia_get(
+    benchmark: Arc<Mutex<StateBenchmark>>,
+    peer_store: Arc<Mutex<peer::Store>>,
+    pool: LocalPoolHandle,
+) {
+    let download_parts = {
+        let mut benchmark = benchmark.lock().unwrap();
+        assert!(benchmark.put_end.is_some());
+        assert!(benchmark.get_start.is_none());
+        benchmark.get_start = Some(SystemTime::now());
+        Vec::from_iter(
+            benchmark
+                .part_ids
+                .iter()
+                .zip(repeat((peer_store, pool.clone())))
+                .map(|((&part_index, &part_id), (peer_store, cloned_pool))| {
+                    spawn(&pool, move || async move {
+                        (
+                            part_index,
+                            kademlia_download_part(part_id, peer_store, cloned_pool).await,
+                        )
+                    })
+                }),
+        )
+    };
+    let mut parts = BTreeMap::new();
+    for download_part in download_parts {
+        let (index, part) = download_part.await.unwrap();
+        parts.insert(index, part);
+    }
+    let mut object = Vec::new();
+    for part in parts.into_values() {
+        object.extend(part);
+    }
+    let mut benchmark = benchmark.lock().unwrap();
+    benchmark.get_end = Some(SystemTime::now());
+    let object_hash = benchmark.object_hash;
+    drop(benchmark);
+    assert_eq!(Sha256::digest(object), object_hash.into());
+}
+
+async fn kademlia_download_part(
+    part_id: [u8; 32],
+    peer_store: Arc<Mutex<peer::Store>>,
+    pool: LocalPoolHandle,
+) -> Bytes {
+    let hex_id = hex_string(&part_id);
+    let pull_parts = Vec::from_iter(
+        peer_store
+            .lock()
+            .unwrap()
+            .closest_peers(&part_id, 3)
+            .into_iter()
+            .cloned()
+            .zip(repeat(hex_id))
+            .map(|(peer, hex_id)| {
+                spawn(&pool, move || async move {
+                    let mut response = Client::new()
+                        .get(format!("{}/kademlia/download/pull/{hex_id}", peer.uri))
+                        .trace_request()
+                        .send()
+                        .await
+                        .unwrap();
+                    assert_eq!(
+                        response.status(),
+                        StatusCode::OK,
+                        "{:?}",
+                        response.body().await
+                    );
+                    response.body().limit(16 << 20).await.unwrap()
+                })
+            }),
+    );
+    let mut pull_parts_set = JoinSet::new();
+    for pull_part in pull_parts {
+        pull_parts_set.spawn(pull_part);
+    }
+    pull_parts_set.join_next().await.unwrap().unwrap().unwrap()
+}
+
+#[get("/kademlia/download/pull/{part_id}")]
+async fn kademlia_download_pull(data: Data<State>, part_id: Path<String>) -> impl Responder {
+    let path = data.config.chunk_path.join(part_id.into_inner());
+    let part = tokio::fs::read(&path).await.unwrap();
+    tokio::fs::remove_file(&path).await.unwrap();
+    part
 }

@@ -7,8 +7,9 @@ from common import NUM_HOST_BENCHMARK_PEER, HOSTS, SERVICE as PLAZA
 
 
 ARGV = dict(enumerate(sys.argv))
-NUM_OPERATION = int(ARGV.get(1, "1"))
-NUM_CONCURRENT = int(ARGV.get(2, "1"))
+PROTOCOL = ARGV.get(1, "entropy")
+NUM_OPERATION = int(ARGV.get(2, "1"))
+NUM_CONCURRENT = int(ARGV.get(3, "1"))
 assert NUM_CONCURRENT <= NUM_OPERATION
 
 
@@ -30,7 +31,7 @@ async def ready():
 async def put_get(peer):
     async with aiohttp.ClientSession() as session:
         print(f"commit put operation on {peer}")
-        async with session.post(f"{peer}/benchmark/entropy") as resp:
+        async with session.post(f"{peer}/benchmark/{PROTOCOL}") as resp:
             benchmark_id = await resp.json()
         while True:
             await asyncio.sleep(1)
@@ -43,7 +44,7 @@ async def put_get(peer):
         await asyncio.sleep(1)
 
         print(f"commit get operation on {peer}")
-        await session.post(f"{peer}/benchmark/entropy/{benchmark_id}/get")
+        await session.post(f"{peer}/benchmark/{benchmark_id}/{PROTOCOL}/get")
         while True:
             await asyncio.sleep(1)
             async with session.get(f"{peer}/benchmark/{benchmark_id}") as resp:

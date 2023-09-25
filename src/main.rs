@@ -17,8 +17,6 @@ mod common;
 mod peer;
 mod plaza;
 
-type ChunkKey = [u8; 32];
-
 #[derive(clap::Parser)]
 struct Cli {
     host: String,
