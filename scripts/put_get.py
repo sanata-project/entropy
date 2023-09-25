@@ -69,7 +69,7 @@ async def main():
     ]
     tasks = []
     for _ in range(NUM_CONCURRENT):
-        await asyncio.sleep(5)
+        # await asyncio.sleep(5)
         tasks.append(asyncio.create_task(operation(peers)))
     num_operation = NUM_CONCURRENT
     while tasks:
