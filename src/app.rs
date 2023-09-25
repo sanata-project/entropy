@@ -20,7 +20,10 @@ use opentelemetry::trace::FutureExt;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::{sync::mpsc, task::JoinSet};
+use tokio::{
+    sync::mpsc::{self, UnboundedReceiver},
+    task::JoinSet,
+};
 use tokio_util::{sync::CancellationToken, task::LocalPoolHandle};
 use wirehair::{WirehairDecoder, WirehairEncoder};
 
@@ -51,6 +54,7 @@ pub struct State {
     upload_chunk_states: Arc<Mutex<HashMap<ChunkKey, UploadChunkState>>>,
     chunk_states: Arc<Mutex<HashMap<ChunkKey, ChunkState>>>,
     peer_store: Arc<Mutex<peer::Store>>,
+    repair_finish: mpsc::UnboundedSender<[u8; 32]>,
 }
 
 #[derive(Debug, Clone)]
@@ -93,7 +97,7 @@ struct StateBenchmark {
 #[derive(Debug, Clone)]
 struct UploadChunkState {
     chunk_index: u32,
-    members: HashMap<u32, ChunkMember>,
+    members: BTreeMap<u32, ChunkMember>,
     query: mpsc::UnboundedSender<ChunkMember>,
     up: mpsc::UnboundedSender<(u32, Bytes)>,
 }
@@ -101,8 +105,10 @@ struct UploadChunkState {
 #[derive(Debug)]
 struct ChunkState {
     index: u32,
-    members: HashMap<u32, ChunkMember>,
+    members: BTreeMap<u32, ChunkMember>,
     has_fragment: CancellationToken,
+    repair: mpsc::UnboundedSender<(u32, Bytes)>,
+    is_inviting: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,7 +119,12 @@ struct ChunkMember {
 }
 
 impl State {
-    pub fn new(config: StateConfig, pool: LocalPoolHandle, peer_store: peer::Store) -> Self {
+    pub fn new(
+        config: StateConfig,
+        pool: LocalPoolHandle,
+        peer_store: peer::Store,
+        repair_finish: mpsc::UnboundedSender<[u8; 32]>,
+    ) -> Self {
         Self {
             config: Arc::new(config),
             pool,
@@ -121,6 +132,7 @@ impl State {
             upload_chunk_states: Default::default(),
             chunk_states: Default::default(),
             peer_store: Arc::new(Mutex::new(peer_store)),
+            repair_finish,
         }
     }
 
@@ -143,8 +155,16 @@ impl State {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ChunkMembersMessage {
-    members: HashMap<u32, ChunkMember>,
+    members: BTreeMap<u32, ChunkMember>,
     uploader: Peer,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RepairUpMessage {
+    members: BTreeMap<u32, ChunkMember>,
+    index: u32,
+    time: SystemTime,
+    signature: (),
 }
 
 fn spawn<F: std::future::Future<Output = T> + 'static, T: Send + 'static>(
@@ -477,6 +497,8 @@ async fn entropy_upload_invite(
         index,
         members: Default::default(),
         has_fragment: CancellationToken::new(),
+        repair: mpsc::unbounded_channel().0,
+        is_inviting: false,
     };
     let duplicated = data
         .chunk_states
@@ -857,4 +879,299 @@ async fn kademlia_download_pull(data: Data<State>, part_id: Path<String>) -> imp
     let part = tokio::fs::read(&path).await.unwrap();
     tokio::fs::remove_file(&path).await.unwrap();
     part
+}
+
+impl State {
+    pub fn repair(&self) {
+        let mut chunk_states = self.chunk_states.lock().unwrap();
+        for chunk_key in Vec::from_iter(chunk_states.keys().copied()) {
+            let chunk_state = chunk_states.get_mut(&chunk_key).unwrap();
+            let (evicted, _) = chunk_state.members.pop_first().unwrap();
+            if evicted == chunk_state.index {
+                // tokio::fs::remove_file(
+                //     self.config
+                //         .chunk_path
+                //         .join(hex_string(&chunk_key))
+                //         .join(chunk_state.index.to_string()),
+                // )
+                // .await
+                // .unwrap();
+                chunk_states.remove(&chunk_key).unwrap();
+                continue;
+            }
+            if chunk_state.index == *chunk_state.members.last_key_value().unwrap().0 {
+                chunk_state.is_inviting = true;
+                let mut peer;
+                let mut index = chunk_state.index + 1;
+                loop {
+                    peer = self
+                        .peer_store
+                        .lock()
+                        .unwrap()
+                        .closest_peers(&fragment_id(&chunk_key, index), 1)[0]
+                        .clone();
+                    if !chunk_state
+                        .members
+                        .values()
+                        .any(|member| member.peer.id == peer.id)
+                    {
+                        break;
+                    }
+                    index += 1;
+                }
+
+                let hex_key = hex_string(&chunk_key);
+                let message = bincode::options().serialize(&chunk_state.members).unwrap();
+                spawn(&self.pool, move || async move {
+                    let mut response = Client::new()
+                        .post(format!(
+                            "{}/entropy/repair/invite/{hex_key}/{index}",
+                            peer.uri
+                        ))
+                        .trace_request()
+                        .send_body(message)
+                        .await
+                        .unwrap();
+                    assert_eq!(
+                        response.status(),
+                        StatusCode::OK,
+                        "{:?}",
+                        response.body().await
+                    );
+                });
+            }
+        }
+    }
+}
+
+#[post("/entropy/repair/invite/{chunk_key}/{index}")]
+async fn entropy_repair_invite(
+    data: Data<State>,
+    path: Path<(String, u32)>,
+    members: Bytes,
+) -> impl Responder {
+    let (chunk_key, index) = path.into_inner();
+    let members = bincode::options()
+        .deserialize::<BTreeMap<u32, ChunkMember>>(&members)
+        .unwrap();
+    // TODO generate proof
+
+    let repair = mpsc::unbounded_channel();
+    let chunk_state = ChunkState {
+        index,
+        members: members.clone(),
+        has_fragment: CancellationToken::new(),
+        repair: repair.0,
+        is_inviting: false,
+    };
+    let duplicated = data
+        .chunk_states
+        .lock()
+        .unwrap()
+        .insert(parse_key(&chunk_key), chunk_state);
+    assert!(duplicated.is_none());
+
+    let local_member = ChunkMember {
+        peer: data.config.peer.clone(),
+        index,
+        proof: (),
+    };
+    let message = Bytes::from(bincode::options().serialize(&local_member).unwrap());
+    for (member, (chunk_key, message)) in members
+        .into_values()
+        .zip(repeat((chunk_key.clone(), message)))
+    {
+        spawn(&data.pool, move || async move {
+            let mut response = Client::new()
+                .post(format!(
+                    "{}/entropy/repair/query/{chunk_key}",
+                    member.peer.uri
+                ))
+                .trace_request()
+                .send_body(message)
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                StatusCode::OK,
+                "{:?}",
+                response.body().await
+            );
+        });
+    }
+
+    spawn(&data.pool, {
+        let chunk_states = data.chunk_states.clone();
+        let config = data.config.clone();
+        let pool = data.pool.clone();
+        move || {
+            entropy_repair(
+                parse_key(&chunk_key),
+                local_member,
+                chunk_states,
+                repair.1,
+                config,
+                pool,
+            )
+        }
+    });
+
+    HttpResponse::Ok()
+}
+
+async fn entropy_repair(
+    chunk_key: [u8; 32],
+    member: ChunkMember,
+    chunk_states: Arc<Mutex<HashMap<ChunkKey, ChunkState>>>,
+    mut repair: UnboundedReceiver<(u32, Bytes)>,
+    config: Arc<StateConfig>,
+    pool: LocalPoolHandle,
+) {
+    let mut decoder = WirehairDecoder::new(config.chunk_size() as _, config.fragment_size);
+    while {
+        let (index, fragment) = repair.recv().await.unwrap();
+        !decoder.decode(index, &fragment).unwrap()
+    } {}
+    let mut fragment = vec![0; config.fragment_size as usize];
+    decoder
+        .into_encoder()
+        .unwrap()
+        .encode(member.index, &mut fragment)
+        .unwrap();
+
+    let hex_key = hex_string(&chunk_key);
+    tokio::fs::create_dir(config.chunk_path.join(&hex_key))
+        .await
+        .unwrap();
+    tokio::fs::write(
+        config
+            .chunk_path
+            .join(&hex_key)
+            .join(member.index.to_string()),
+        fragment,
+    )
+    .await
+    .unwrap();
+
+    let mut chunk_states = chunk_states.lock().unwrap();
+    let chunk_state = chunk_states.get_mut(&chunk_key).unwrap();
+    chunk_state.has_fragment.cancel();
+    let members = chunk_state.members.clone();
+    chunk_state.members.insert(member.index, member);
+
+    let message_bytes = Bytes::from(
+        bincode::options()
+            .serialize(
+                &(RepairUpMessage {
+                    members: chunk_state.members.clone(),
+                    index: chunk_state.index,
+                    time: SystemTime::now(),
+                    signature: (),
+                }),
+            )
+            .unwrap(),
+    );
+    drop(chunk_states);
+
+    for (member, (message, hex_key)) in members
+        .into_values()
+        .zip(repeat((message_bytes, hex_string(&chunk_key))))
+    {
+        spawn(&pool, move || async move {
+            let mut response = Client::new()
+                .post(format!("{}/entropy/repair/up/{hex_key}", member.peer.uri))
+                .trace_request()
+                .send_body(message)
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                StatusCode::OK,
+                "{:?}",
+                response.body().await
+            );
+        });
+    }
+}
+
+#[post("/entropy/repair/query/{chunk_key}")]
+async fn entropy_repair_query(
+    data: Data<State>,
+    chunk_key: Path<String>,
+    member: Bytes,
+) -> impl Responder {
+    let chunk_key = chunk_key.into_inner();
+    let member = bincode::options()
+        .deserialize::<ChunkMember>(&member)
+        .unwrap();
+    // TODO verify proof
+    let index = {
+        let chunk_states = data.chunk_states.lock().unwrap();
+        let chunk_state = &chunk_states[&parse_key(&chunk_key)];
+        assert!(chunk_state.has_fragment.is_cancelled());
+        chunk_state.index
+    };
+    let path = data
+        .config
+        .chunk_path
+        .join(&chunk_key)
+        .join(index.to_string());
+    spawn(&data.pool, move || async move {
+        let fragment = tokio::fs::read(&path).await.unwrap();
+        let mut response = Client::builder()
+            .disable_timeout()
+            .finish()
+            .post(format!(
+                "{}/entropy/repair/push/{chunk_key}/{index}",
+                member.peer.uri
+            ))
+            .trace_request()
+            .send_body(fragment)
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "{:?}",
+            response.body().await
+        );
+    });
+    HttpResponse::Ok()
+}
+
+#[post("/entropy/repair/push/{chunk_key}/{index}")]
+async fn entorpy_repair_push(
+    data: Data<State>,
+    path: Path<(String, u32)>,
+    fragment: Bytes,
+) -> impl Responder {
+    let (chunk_key, index) = path.into_inner();
+    let disconnected = data.chunk_states.lock().unwrap()[&parse_key(&chunk_key)]
+        .repair
+        .send((index, fragment))
+        .is_err();
+    if disconnected {
+        //
+    }
+    HttpResponse::Ok()
+}
+
+#[post("/entropy/repair/up/{chunk_key}")]
+async fn entropy_repair_up(
+    data: Data<State>,
+    chunk_key: Path<String>,
+    message: Bytes,
+) -> impl Responder {
+    let message = bincode::options()
+        .deserialize::<RepairUpMessage>(&message)
+        .unwrap();
+    let chunk_key = parse_key(&chunk_key);
+    let mut chunk_states = data.chunk_states.lock().unwrap();
+    let chunk_state = chunk_states.get_mut(&chunk_key).unwrap();
+    // TODO verify proof
+    chunk_state.members.extend(message.members);
+    if chunk_state.members.len() >= data.config.inner_n as usize && chunk_state.is_inviting {
+        data.repair_finish.send(chunk_key).unwrap();
+    }
+    HttpResponse::Ok()
 }

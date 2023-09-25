@@ -1,13 +1,17 @@
-use std::{env::current_exe, time::Duration};
+use std::{
+    env::current_exe,
+    time::{Duration, Instant},
+};
 
 use actix_web::{
     http::StatusCode,
     web::{Data, PayloadConfig},
     App, HttpServer,
 };
+use bincode::Options;
 use clap::Parser;
 use opentelemetry::KeyValue;
-use tokio::{spawn, time::sleep};
+use tokio::{spawn, sync::mpsc, time::sleep};
 use tokio_util::{sync::CancellationToken, task::LocalPoolHandle};
 
 use crate::{common::hex_string, peer::Peer};
@@ -57,7 +61,7 @@ fn main() {
                 .service(plaza::leave)
                 .service(plaza::poll_ready)
                 .service(plaza::shutdown)
-                .service(plaza::poll_shutdown)
+                .service(plaza::poll_status)
         })
         .bind((cli.host, 8080))
         .unwrap()
@@ -86,8 +90,8 @@ fn main() {
     let uri = format!("http://{}:{port}", cli.host);
     let signing_key = Peer::signing_key(&uri);
     let peer = Peer::new(uri);
-    println!("{}", peer.uri);
-    println!("{}", hex_string(&peer.id));
+    // println!("{}", peer.uri);
+    // println!("{}", hex_string(&peer.id));
     let work_dir = current_exe().unwrap().parent().unwrap().to_owned();
     let peer_store = peer::Store::new(Vec::from_iter(
         std::fs::read_to_string(work_dir.join("hosts.txt"))
@@ -123,14 +127,23 @@ fn main() {
         peer: peer.clone(),
         peer_secret: signing_key,
     };
-    let state = Data::new(app::State::new(config, pool.clone(), peer_store));
-    let server = HttpServer::new(move || {
+    let repair_finish = mpsc::unbounded_channel();
+    let state = Data::new(app::State::new(
+        config,
+        pool.clone(),
+        peer_store,
+        repair_finish.0,
+    ));
+    let server = {
         let state = state.clone();
-        App::new()
-            .wrap(actix_web_opentelemetry::RequestTracing::new())
-            .configure(|config| app::State::inject(config, state))
-            .app_data(PayloadConfig::new(16 << 20))
-    });
+        HttpServer::new(move || {
+            let state = state.clone();
+            App::new()
+                .wrap(actix_web_opentelemetry::RequestTracing::new())
+                .configure(|config| app::State::inject(config, state))
+                .app_data(PayloadConfig::new(16 << 20))
+        })
+    };
     let server = if !cli.benchmark {
         server.workers(1)
     } else {
@@ -163,7 +176,8 @@ fn main() {
             pool.spawn_pinned({
                 let plaza = common::aws_dns_to_ip(cli.plaza.clone().unwrap());
                 let shutdown = shutdown.clone();
-                move || plaza_session(plaza, shutdown.clone())
+                let pool = pool.clone();
+                move || plaza_session(plaza, shutdown.clone(), state, repair_finish.1, pool)
             });
 
             spawn(async move {
@@ -180,7 +194,13 @@ fn main() {
     std::fs::remove_dir_all(&chunk_path).unwrap();
 }
 
-async fn plaza_session(plaza: String, shutdown: CancellationToken) {
+async fn plaza_session(
+    plaza: String,
+    shutdown: CancellationToken,
+    state: Data<app::State>,
+    repair_finish: mpsc::UnboundedReceiver<[u8; 32]>,
+    pool: LocalPoolHandle,
+) {
     // use rand::Rng;
     // sleep(Duration::from_millis(rand::thread_rng().gen_range(0..5000))).await;
 
@@ -193,30 +213,55 @@ async fn plaza_session(plaza: String, shutdown: CancellationToken) {
         response.body().await
     );
 
+    let mut repair_finish = Some(repair_finish);
     loop {
         sleep(Duration::from_secs(1)).await;
-        let global_shutdown = async {
-            let mut response = client
-                .get(format!("{plaza}/shutdown"))
-                .send()
-                .await
-                .unwrap();
+        let pool_uri = format!("{plaza}/status");
+        let status = async {
+            let mut response = client.get(pool_uri).send().await.unwrap();
             assert_eq!(
                 response.status(),
                 StatusCode::OK,
                 "{:?}",
                 response.body().await
             );
-            response.json::<bool>().await.unwrap()
+            bincode::options()
+                .deserialize::<plaza::PollMessage>(&response.body().await.unwrap())
+                .unwrap()
         };
-        let global_shutdown = tokio::select! {
-            global_shutdown = global_shutdown => global_shutdown,
+        let status = tokio::select! {
+            status = status => status,
             () = shutdown.cancelled() => break,
         };
 
-        if global_shutdown {
+        if status.shutdown {
             shutdown.cancel();
             break;
+        }
+
+        if status.repair {
+            if let Some(mut repair_finish) = repair_finish.take() {
+                let start = Instant::now();
+                state.repair();
+                let repair_finish_uri = format!("{plaza}/repair/finish");
+                pool.spawn_pinned(move || async move {
+                    let client = awc::Client::new();
+                    while let Some(chunk_key) = repair_finish.recv().await {
+                        client
+                            .post(&repair_finish_uri)
+                            .send_body(
+                                bincode::options()
+                                    .serialize(&plaza::RepairFinishMessage {
+                                        key: chunk_key,
+                                        duration: start.elapsed(),
+                                    })
+                                    .unwrap(),
+                            )
+                            .await
+                            .unwrap();
+                    }
+                });
+            }
         }
     }
 
