@@ -46,13 +46,8 @@ struct Cli {
 }
 
 fn main() {
-    let hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        common::shutdown_tracing();
-        hook(info)
-    }));
-
     let cli = Cli::parse();
+
     if let Some(num_participant) = cli.plaza_service {
         let shutdown = CancellationToken::new();
         let state = Data::new(plaza::State::new(num_participant, shutdown.clone()));

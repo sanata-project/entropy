@@ -7,14 +7,17 @@ use std::{
 };
 
 use actix_web::{
-    get, post,
+    get,
+    http::StatusCode,
+    post,
     web::{Bytes, Data, Json, Path, ServiceConfig},
     HttpResponse, Responder,
 };
+use actix_web_opentelemetry::ClientExt;
+use awc::Client;
 use bincode::Options;
 use opentelemetry::trace::FutureExt;
 use rand::RngCore;
-use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{sync::mpsc, task::JoinSet};
@@ -23,6 +26,22 @@ use wirehair::{WirehairDecoder, WirehairEncoder};
 
 use crate::{common::hex_string, peer, ChunkKey, Peer};
 
+fn fragment_id(key: &ChunkKey, index: u32) -> [u8; 32] {
+    Sha256::new()
+        .chain_update(key)
+        .chain_update(index.to_le_bytes())
+        .finalize()
+        .into()
+}
+
+fn parse_key(s: &str) -> ChunkKey {
+    let mut key = Vec::new();
+    for i in (0..s.len()).step_by(2) {
+        key.push(u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+    }
+    key.try_into().unwrap()
+}
+
 pub struct State {
     config: Arc<StateConfig>,
     pool: LocalPoolHandle,
@@ -30,7 +49,6 @@ pub struct State {
     upload_chunk_states: Arc<Mutex<HashMap<ChunkKey, UploadChunkState>>>,
     chunk_states: Arc<Mutex<HashMap<ChunkKey, ChunkState>>>,
     peer_store: Arc<Mutex<peer::Store>>,
-    client: Client,
 }
 
 #[derive(Debug, Clone)]
@@ -99,7 +117,6 @@ impl State {
             upload_chunk_states: Default::default(),
             chunk_states: Default::default(),
             peer_store: Arc::new(Mutex::new(peer_store)),
-            client: Client::new(),
         }
     }
 
@@ -132,22 +149,6 @@ fn spawn<F: std::future::Future<Output = T> + 'static, T: Send + 'static>(
     pool.spawn_pinned(move || create().with_context(context))
 }
 
-fn fragment_id(key: &ChunkKey, index: u32) -> [u8; 32] {
-    Sha256::new()
-        .chain_update(key)
-        .chain_update(index.to_le_bytes())
-        .finalize()
-        .into()
-}
-
-fn parse_key(s: &str) -> ChunkKey {
-    let mut key = Vec::new();
-    for i in (0..s.len()).step_by(2) {
-        key.push(u8::from_str_radix(&s[i..i + 2], 16).unwrap())
-    }
-    key.try_into().unwrap()
-}
-
 #[post("/benchmark/entropy")]
 async fn benchmark_entropy(data: Data<State>) -> impl Responder {
     let mut benchmarks = data.benchmarks.lock().unwrap();
@@ -159,16 +160,8 @@ async fn benchmark_entropy(data: Data<State>) -> impl Responder {
     let peer_store = data.peer_store.clone();
     let config = data.config.clone();
     let pool = data.pool.clone();
-    let client = data.client.clone();
     spawn(&data.pool, move || {
-        entropy_put(
-            benchmark,
-            upload_chunk_states,
-            peer_store,
-            config,
-            pool,
-            client,
-        )
+        entropy_put(benchmark, upload_chunk_states, peer_store, config, pool)
     });
     Json(id)
 }
@@ -180,18 +173,10 @@ async fn benchmark_entropy_get(data: Data<State>, index: Path<usize>) -> impl Re
     let upload_chunk_states = data.upload_chunk_states.clone();
     let config = data.config.clone();
     let pool = data.pool.clone();
-    let client = data.client.clone();
     spawn(&data.pool, move || {
-        entropy_get(benchmark, upload_chunk_states, config, pool, client)
+        entropy_get(benchmark, upload_chunk_states, config, pool)
     });
     HttpResponse::Ok()
-}
-
-#[get("/benchmark/{index}")]
-async fn poll_benchmark(data: Data<State>, index: Path<usize>) -> impl Responder {
-    let benchmarks = data.benchmarks.lock().unwrap();
-    let benchmark = benchmarks[index.into_inner()].lock().unwrap();
-    Json(benchmark.clone())
 }
 
 async fn entropy_put(
@@ -200,7 +185,6 @@ async fn entropy_put(
     peer_store: Arc<Mutex<peer::Store>>,
     config: Arc<StateConfig>,
     pool: LocalPoolHandle,
-    client: Client,
 ) {
     let mut object = vec![0; config.object_size() as usize];
     rand::thread_rng().fill_bytes(&mut object);
@@ -221,7 +205,6 @@ async fn entropy_put(
                 peer_store,
                 config,
                 pool.clone(),
-                client,
             )))
             .map(
                 |(
@@ -233,7 +216,6 @@ async fn entropy_put(
                         peer_store,
                         config,
                         cloned_pool,
-                        client,
                     ),
                 )| {
                     spawn(&pool, move || {
@@ -245,7 +227,6 @@ async fn entropy_put(
                             peer_store,
                             config,
                             cloned_pool,
-                            client,
                         )
                     })
                 },
@@ -266,7 +247,6 @@ async fn entropy_upload_chunk(
     peer_store: Arc<Mutex<peer::Store>>,
     config: Arc<StateConfig>,
     pool: LocalPoolHandle,
-    client: Client,
 ) {
     let mut chunk = vec![0; config.chunk_size() as usize];
     chunk_encoder.encode(chunk_index, &mut chunk).unwrap();
@@ -275,22 +255,12 @@ async fn entropy_upload_chunk(
 
     let mut peers = HashMap::new();
     let mut peer_id_index = HashMap::new();
-    for index in 0..config.inner_n * 4 {
+    for index in 0..config.inner_n * 2 {
         let peer = peer_store
             .lock()
             .unwrap()
             .closest_peers(&fragment_id(&chunk_key, index), 1)[0]
             .clone();
-        if peer.uri.parse::<actix_web::http::Uri>().unwrap().host()
-            == config
-                .peer
-                .uri
-                .parse::<actix_web::http::Uri>()
-                .unwrap()
-                .host()
-        {
-            continue;
-        }
         if let Some(duplicated_index) = peer_id_index.insert(peer.id, index) {
             peers.remove(&duplicated_index).unwrap();
         }
@@ -316,27 +286,24 @@ async fn entropy_upload_chunk(
 
     let hex_key = hex_string(&chunk_key);
     let message = Bytes::from(bincode::options().serialize(&config.peer).unwrap());
-    for ((index, peer), (hex_key, message, client)) in
-        peers
-            .into_iter()
-            .zip(repeat((hex_key.clone(), message, client.clone())))
+    for ((index, peer), (hex_key, message)) in
+        peers.into_iter().zip(repeat((hex_key.clone(), message)))
     {
         spawn(&pool, move || async move {
-            let response = client
+            let mut response = Client::new()
                 .post(format!(
                     "{}/entropy/upload/invite/{hex_key}/{index}",
                     peer.uri
                 ))
-                // .trace_request()
-                .body(message)
-                .send()
+                .trace_request()
+                .send_body(message)
                 .await
-                .expect(&hex_string(&peer.id));
+                .unwrap();
             assert_eq!(
                 response.status(),
                 StatusCode::OK,
                 "{:?}",
-                response.bytes().await
+                response.body().await
             );
         });
     }
@@ -354,10 +321,8 @@ async fn entropy_upload_chunk(
             let encoder = encoder.clone();
             let peer = member.peer.clone();
             let config = config.clone();
-            let client = client.clone();
             spawn(&pool, move || {
-                // acquire resource?
-                entropy_push_fragment(chunk_key, index, encoder, peer, config, client)
+                entropy_push_fragment(chunk_key, index, encoder, peer, config)
             });
         }
 
@@ -377,23 +342,20 @@ async fn entropy_upload_chunk(
             })
             .unwrap(),
     );
-    for (member, (hex_key, message, client)) in
-        members.values().zip(repeat((hex_key, message, client)))
-    {
+    for (member, (hex_key, message)) in members.values().zip(repeat((hex_key, message))) {
         let uri = member.peer.uri.clone();
         spawn(&pool, move || async move {
-            let response = client
+            let mut response = Client::new()
                 .post(format!("{uri}/entropy/upload/members/{hex_key}"))
-                // .trace_request()
-                .body(message)
-                .send()
+                .trace_request()
+                .send_body(message)
                 .await
                 .unwrap();
             assert_eq!(
                 response.status(),
                 StatusCode::OK,
                 "{:?}",
-                response.bytes().await
+                response.body().await
             );
         });
     }
@@ -416,28 +378,34 @@ async fn entropy_push_fragment(
     encoder: Arc<WirehairEncoder>,
     peer: Peer,
     config: Arc<StateConfig>,
-    client: Client,
 ) {
     let mut fragment = vec![0; config.fragment_size as usize];
     encoder.encode(index, &mut fragment).unwrap();
     let hex_key = hex_string(&chunk_key);
-    // let _resource = client_resource.acquire().await;
-    let response = client
+    let mut response = Client::builder()
+        .disable_timeout()
+        .finish()
         .post(format!(
             "{}/entropy/upload/push/{hex_key}/{index}",
             peer.uri
         ))
-        // .trace_request()
-        .body(fragment)
-        .send()
+        .trace_request()
+        .send_body(fragment)
         .await
         .unwrap();
     assert_eq!(
         response.status(),
         StatusCode::OK,
         "{:?}",
-        response.bytes().await
+        response.body().await
     );
+}
+
+#[get("/benchmark/{index}")]
+async fn poll_benchmark(data: Data<State>, index: Path<usize>) -> impl Responder {
+    let benchmarks = data.benchmarks.lock().unwrap();
+    let benchmark = benchmarks[index.into_inner()].lock().unwrap();
+    Json(benchmark.clone())
 }
 
 #[post("/entropy/upload/query/{chunk_key}")]
@@ -495,20 +463,18 @@ async fn entropy_upload_invite(
             proof: (),
         })
         .unwrap();
-    let client = data.client.clone();
     spawn(&data.pool, move || async move {
-        let response = client
+        let mut response = Client::new()
             .post(format!("{}/entropy/upload/query/{chunk_key}", uploader.uri))
-            // .trace_request()
-            .body(message)
-            .send()
+            .trace_request()
+            .send_body(message)
             .await
             .unwrap();
         assert_eq!(
             response.status(),
             StatusCode::OK,
             "{:?}",
-            response.bytes().await
+            response.body().await
         );
     });
 
@@ -556,25 +522,23 @@ async fn entropy_upload_members(
 
     let has_fragment = chunk_state.has_fragment.clone();
     let index = chunk_state.index;
-    let client = data.client.clone();
     spawn(&data.pool, move || async move {
         has_fragment.cancelled().await;
         // TODO spawn check repair task
-        let response = client
+        let mut response = Client::new()
             .post(format!(
                 "{}/entropy/upload/up/{chunk_key}/{index}",
                 message.uploader.uri,
             ))
-            // .trace_request()
-            .body(Bytes::default()) // TODO signature
-            .send()
+            .trace_request()
+            .send_body(Bytes::default()) // TODO signature
             .await
             .unwrap();
         assert_eq!(
             response.status(),
             StatusCode::OK,
             "{:?}",
-            response.bytes().await
+            response.body().await
         );
     });
     HttpResponse::Ok()
@@ -585,7 +549,6 @@ async fn entropy_get(
     upload_chunk_states: Arc<Mutex<HashMap<ChunkKey, UploadChunkState>>>,
     config: Arc<StateConfig>,
     pool: LocalPoolHandle,
-    client: Client,
 ) {
     let download_chunks = {
         let mut benchmark = benchmark.lock().unwrap();
@@ -596,25 +559,12 @@ async fn entropy_get(
             benchmark
                 .chunk_keys
                 .iter()
-                .zip(repeat((
-                    upload_chunk_states,
-                    config.clone(),
-                    pool.clone(),
-                    client,
-                )))
-                .map(
-                    |(&chunk_key, (upload_chunk_states, config, cloned_pool, client))| {
-                        spawn(&pool, move || {
-                            entropy_download_chunk(
-                                chunk_key,
-                                upload_chunk_states,
-                                config,
-                                cloned_pool,
-                                client,
-                            )
-                        })
-                    },
-                ),
+                .zip(repeat((upload_chunk_states, config.clone(), pool.clone())))
+                .map(|(&chunk_key, (upload_chunk_states, config, cloned_pool))| {
+                    spawn(&pool, move || {
+                        entropy_download_chunk(chunk_key, upload_chunk_states, config, cloned_pool)
+                    })
+                }),
         )
     };
     let mut download_chunks_set = JoinSet::new();
@@ -647,22 +597,21 @@ async fn entropy_download_chunk(
     upload_chunk_states: Arc<Mutex<HashMap<ChunkKey, UploadChunkState>>>,
     config: Arc<StateConfig>,
     pool: LocalPoolHandle,
-    client: Client,
 ) -> (u32, Vec<u8>) {
     let upload_chunk_state = upload_chunk_states.lock().unwrap()[&chunk_key].clone();
     let pull_fragments = Vec::from_iter(
         upload_chunk_state
             .members
             .into_values()
-            .zip(repeat((hex_string(&chunk_key), client)))
-            .map(|(member, (hex_key, client))| {
+            .zip(repeat(hex_string(&chunk_key)))
+            .map(|(member, hex_key)| {
                 spawn(&pool, move || async move {
-                    let response = client
+                    let mut response = Client::new()
                         .get(format!(
                             "{}/entropy/download/pull/{hex_key}/{}",
                             member.peer.uri, member.index
                         ))
-                        // .trace_request()
+                        .trace_request()
                         .send()
                         .await
                         .unwrap();
@@ -670,9 +619,9 @@ async fn entropy_download_chunk(
                         response.status(),
                         StatusCode::OK,
                         "{:?}",
-                        response.bytes().await
+                        response.body().await
                     );
-                    (member.index, response.bytes().await.unwrap())
+                    (member.index, response.body().limit(16 << 20).await.unwrap())
                 })
             }),
     );

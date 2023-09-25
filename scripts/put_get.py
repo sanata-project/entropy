@@ -56,8 +56,8 @@ async def put_get(peer):
 
 
 async def operation(peers):
-    # await put_get(random.choice(peers))
-    await put_get(peers[0])
+    await put_get(random.choice(peers))
+    # await put_get(peers[0])
 
 
 async def main():
@@ -69,6 +69,7 @@ async def main():
     ]
     tasks = []
     for _ in range(NUM_CONCURRENT):
+        await asyncio.sleep(5)
         tasks.append(asyncio.create_task(operation(peers)))
     num_operation = NUM_CONCURRENT
     while tasks:
