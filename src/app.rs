@@ -758,7 +758,9 @@ async fn kademlia_put(
                             .cloned(),
                     );
                     for peer in peers {
-                        let mut response = Client::new()
+                        let mut response = Client::builder()
+                            .disable_timeout()
+                            .finish()
                             .post(format!(
                                 "{}/kademlia/upload/push/{}",
                                 peer.uri,

@@ -11,12 +11,21 @@ from common import (
     INNER_N,
     OUTER_K,
     OUTER_N,
+    REPAIR_CONCURRENCY,
+    PROTOCOL,
 )
 
 ARGV = dict(enumerate(sys.argv))
 HOST = ARGV.get(1, "10.0.0.1")
 EXTRA_ARGS = sys.argv[2:]
 WORK_DIR = pathlib.Path(__file__).absolute().parent
+
+if "--repair" in EXTRA_ARGS:
+    if PROTOCOL == "entropy":
+        OUTER_K = OUTER_N = REPAIR_CONCURRENCY
+    if PROTOCOL == "kademlia":
+        INNER_K = INNER_N = 1
+        OUTER_K = OUTER_N = REPAIR_CONCURRENCY
 
 
 async def run_peers():
@@ -25,8 +34,8 @@ async def run_peers():
         command = [
             "RUST_LOG=info",
             "RUST_BACKTRACE=1",
-            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://10.0.0.1:4317",
-            # "OTEL_SDK_DISABLED=true",
+            # "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://10.0.0.1:4317",
+            "OTEL_SDK_DISABLED=true",
             f"{WORK_DIR}/entropy",
             HOST,
             "--port",

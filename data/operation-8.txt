@@ -1,0 +1,5 @@
+comment,peer,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent
+commit put operation on http://ec2-3-72-74-20.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-72-74-20.eu-central-1.compute.amazonaws.com:10000,put,20.21980381011963,entropy,32,80,12,15,1
+commit get operation on http://ec2-3-72-74-20.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-72-74-20.eu-central-1.compute.amazonaws.com:10000,get,10.871273756027222,entropy,32,80,12,15,1

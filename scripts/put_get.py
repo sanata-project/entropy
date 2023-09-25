@@ -3,13 +3,21 @@ import aiohttp
 import sys
 import random
 
-from common import NUM_HOST_BENCHMARK_PEER, HOSTS, SERVICE as PLAZA
+from common import (
+    NUM_HOST_BENCHMARK_PEER,
+    HOSTS,
+    SERVICE as PLAZA,
+    INNER_K,
+    INNER_N,
+    OUTER_K,
+    OUTER_N,
+    PROTOCOL,
+    NUM_OPERATION,
+)
 
 
 ARGV = dict(enumerate(sys.argv))
-PROTOCOL = ARGV.get(1, "entropy")
-NUM_OPERATION = int(ARGV.get(2, "1"))
-NUM_CONCURRENT = int(ARGV.get(3, "1"))
+NUM_CONCURRENT = int(ARGV.get(1, "1"))
 assert NUM_CONCURRENT <= NUM_OPERATION
 
 
@@ -40,7 +48,9 @@ async def put_get(peer):
                 if result["put_end"]:
                     break
         latency = to_timestamp(result["put_end"]) - to_timestamp(result["put_start"])
-        print(f",{peer},put,{latency}")
+        print(
+            f",{peer},put,{latency},{PROTOCOL},{INNER_K},{INNER_N},{OUTER_K},{OUTER_N},{NUM_CONCURRENT}"
+        )
         await asyncio.sleep(1)
 
         print(f"commit get operation on {peer}")
@@ -52,7 +62,9 @@ async def put_get(peer):
                 if result["get_end"]:
                     break
         latency = to_timestamp(result["get_end"]) - to_timestamp(result["get_start"])
-        print(f",{peer},get,{latency}")
+        print(
+            f",{peer},get,{latency},{PROTOCOL},{INNER_K},{INNER_N},{OUTER_K},{OUTER_N},{NUM_CONCURRENT}"
+        )
         await asyncio.sleep(1)
 
 
@@ -62,6 +74,9 @@ async def operation(peers):
 
 
 async def main():
+    print(
+        "comment,peer,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent"
+    )
     await ready()
     peers = [
         f"http://{host}:{10000 + index}"
