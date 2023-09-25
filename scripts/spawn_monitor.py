@@ -24,6 +24,8 @@ async def prepare():
         stdout=asyncio.subprocess.DEVNULL,
     )
     assert await proc.wait() == 0
+    proc = await asyncio.create_subprocess_shell("sudo ethtool -G ens5 rx 16384")
+    assert await proc.wait() == 0
 
 
 async def run_peers():
@@ -32,8 +34,8 @@ async def run_peers():
         command = [
             "RUST_LOG=info",
             "RUST_BACKTRACE=1",
-            # "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://10.0.0.1:4317",
-            "OTEL_SDK_DISABLED=true",
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://ec2-18-163-41-210.ap-east-1.compute.amazonaws.com:4317",
+            # "OTEL_SDK_DISABLED=true",
             f"{WORK_DIR}/entropy",
             HOST,
             "--port",
@@ -68,6 +70,7 @@ async def run_peers():
             return code, index
 
         tasks.append(asyncio.create_task(wait(proc, index)))
+
     active_shutdown = False
     while tasks:
         done_tasks, tasks = await asyncio.wait(
@@ -89,7 +92,7 @@ async def shutdown_peers():
 
 
 async def main():
-    if HOST.endswith('compute.amazonaws.com'):
+    if HOST.endswith("compute.amazonaws.com"):
         await prepare()
     # print("run peers")
     if await run_peers():

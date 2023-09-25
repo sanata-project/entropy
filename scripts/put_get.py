@@ -56,8 +56,8 @@ async def put_get(peer):
 
 
 async def operation(peers):
-    await put_get(random.choice(peers))
-    # await put_get(peers[0])
+    # await put_get(random.choice(peers))
+    await put_get(peers[0])
 
 
 async def main():
