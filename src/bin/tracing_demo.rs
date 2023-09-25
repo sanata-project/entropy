@@ -60,7 +60,9 @@ async fn echo(path: Path<String>) -> String {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
+    opentelemetry::global::set_text_map_propagator(
+        opentelemetry::sdk::propagation::TraceContextPropagator::new(),
+    );
     let otlp_exporter = opentelemetry_otlp::new_exporter().tonic();
     let tracer = opentelemetry_otlp::new_pipeline()
         .tracing()
