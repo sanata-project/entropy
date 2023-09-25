@@ -15,7 +15,7 @@ WORK_DIR = "/home/ubuntu"
 # WORK_DIR = "/local/cowsay/artifacts"
 
 
-NUM_HOST_PEER = 10
+NUM_HOST_PEER = 100
 NUM_HOST_BENCHMARK_PEER = 1
 NUM_TOTAL_PEER = NUM_HOST_PEER * len(HOSTS)
 
@@ -32,11 +32,11 @@ FRAGMENT_SIZE = int((1 << 30) / INNER_K / OUTER_K)
 
 # PROTOCOL = "entropy"
 PROTOCOL = "kademlia"
-REPAIR_CONCURRENCY = 8
+REPAIR_CONCURRENCY = 64
 assert REPAIR_CONCURRENCY >= 2
 if PROTOCOL == "entropy":
     assert REPAIR_CONCURRENCY <= OUTER_K
-NUM_OPERATION = 1
+NUM_OPERATION = 10
 
 if __name__ == "__main__":
     print(globals()[argv[1]])
