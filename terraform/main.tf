@@ -53,7 +53,7 @@ module "group-1" {
     aws = aws.ap-east-1
   }
 
-  instance_count = 10
+  instance_count = 20
 }
 
 module "group-2" {
@@ -62,7 +62,7 @@ module "group-2" {
     aws = aws.us-west-1
   }
 
-  instance_count = 0
+  instance_count = 20
 }
 
 module "group-3" {
@@ -71,7 +71,7 @@ module "group-3" {
     aws = aws.eu-central-1
   }
 
-  instance_count = 0
+  instance_count = 20
 }
 
 module "group-4" {
@@ -80,7 +80,7 @@ module "group-4" {
     aws = aws.sa-east-1
   }
 
-  instance_count = 0
+  instance_count = 20
 }
 
 module "group-5" {
@@ -89,7 +89,7 @@ module "group-5" {
     aws = aws.af-south-1
   }
 
-  instance_count = 0
+  instance_count = 20
 }
 
 output "service" {

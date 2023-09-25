@@ -18,25 +18,7 @@ impl Peer {
     }
 
     pub fn new(uri: String) -> Self {
-        let uri2 = uri.parse::<actix_web::http::Uri>().unwrap();
-        let uri = if uri2.host().unwrap().ends_with(".compute.amazonaws.com") {
-            let host = uri2
-                .host()
-                .unwrap()
-                .split('.')
-                .nth(0)
-                .unwrap()
-                .strip_prefix("ec2-")
-                .unwrap()
-                .replace('-', ".");
-            format!(
-                "{}://{host}:{}",
-                uri2.scheme().unwrap(),
-                uri2.port().unwrap()
-            )
-        } else {
-            uri
-        };
+        let uri = crate::common::aws_dns_to_ip(uri);
         let key = Self::signing_key(&uri).verifying_key();
         Self {
             key,

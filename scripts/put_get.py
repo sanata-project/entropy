@@ -77,8 +77,9 @@ async def main():
             tasks, return_when=asyncio.FIRST_COMPLETED
         )
         for done_task in done_tasks:
-            assert done_task.exception() is None, done_task.exception()
-            if num_operation < NUM_OPERATION:
+            if done_task.exception():
+                print(done_task.exception())
+            elif num_operation < NUM_OPERATION:
                 num_operation += 1
                 tasks.add(asyncio.create_task(operation(peers)))
 

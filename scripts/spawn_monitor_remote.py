@@ -16,7 +16,7 @@ async def upload_artifact():
     for host in set(HOSTS):
         proc = await asyncio.create_subprocess_shell(
             f"ssh {host} rm -r {WORK_DIR}/entropy_chunk",
-            stderr=asyncio.subprocess.DEVNULL
+            stderr=asyncio.subprocess.DEVNULL,
         )
         tasks.append(proc.wait())
     await asyncio.gather(*tasks)

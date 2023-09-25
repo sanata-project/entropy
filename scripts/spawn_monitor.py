@@ -18,24 +18,14 @@ HOST = ARGV.get(1, "10.0.0.1")
 WORK_DIR = pathlib.Path(__file__).absolute().parent
 
 
-async def prepare():
-    proc = await asyncio.create_subprocess_shell(
-        'echo "* soft nofile 1048576" | sudo tee /etc/security/limits.conf',
-        stdout=asyncio.subprocess.DEVNULL,
-    )
-    assert await proc.wait() == 0
-    proc = await asyncio.create_subprocess_shell("sudo ethtool -G ens5 rx 16384")
-    assert await proc.wait() == 0
-
-
 async def run_peers():
     tasks = []
     for index in range(NUM_PEER):
         command = [
             "RUST_LOG=info",
             "RUST_BACKTRACE=1",
-            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://18.163.41.210:4317",
-            # "OTEL_SDK_DISABLED=true",
+            # "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://18.163.41.210:4317",
+            "OTEL_SDK_DISABLED=true",
             f"{WORK_DIR}/entropy",
             HOST,
             "--port",
@@ -92,8 +82,6 @@ async def shutdown_peers():
 
 
 async def main():
-    if HOST.endswith("compute.amazonaws.com"):
-        await prepare()
     # print("run peers")
     if await run_peers():
         exit(1)

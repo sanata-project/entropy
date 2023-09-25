@@ -654,12 +654,12 @@ async fn entropy_download_pull(data: Data<State>, path: Path<(String, u32)>) -> 
         assert_eq!(chunk_state.index, index);
         assert!(chunk_state.has_fragment.is_cancelled());
     }
-    tokio::fs::read(
-        data.config
-            .chunk_path
-            .join(chunk_key)
-            .join(index.to_string()),
-    )
-    .await
-    .unwrap()
+    let path = data
+        .config
+        .chunk_path
+        .join(chunk_key)
+        .join(index.to_string());
+    let fragment = tokio::fs::read(&path).await.unwrap();
+    tokio::fs::remove_file(&path).await.unwrap();
+    fragment
 }

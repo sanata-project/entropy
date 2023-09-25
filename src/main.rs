@@ -109,7 +109,6 @@ fn main() {
         .join("entropy_chunk")
         .join(common::hex_string(&peer.id));
     std::fs::create_dir_all(&chunk_path).unwrap();
-    // let chunk_store = chunk::Store::new(chunk_path.clone(), cli.fragment_size, cli.inner_k);
 
     let pool = LocalPoolHandle::new(if cli.benchmark {
         std::thread::available_parallelism().unwrap().into()
@@ -164,7 +163,7 @@ fn main() {
 
             let shutdown = CancellationToken::new();
             pool.spawn_pinned({
-                let plaza = cli.plaza.clone().unwrap();
+                let plaza = common::aws_dns_to_ip(cli.plaza.clone().unwrap());
                 let shutdown = shutdown.clone();
                 move || plaza_session(plaza, shutdown.clone())
             });
@@ -184,6 +183,9 @@ fn main() {
 }
 
 async fn plaza_session(plaza: String, shutdown: CancellationToken) {
+    // use rand::Rng;
+    // sleep(Duration::from_millis(rand::thread_rng().gen_range(0..5000))).await;
+
     let client = awc::Client::new();
     let mut response = client.post(format!("{plaza}/join")).send().await.unwrap();
     assert_eq!(

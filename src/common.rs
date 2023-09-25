@@ -44,3 +44,25 @@ pub fn hex_string(bytes: &[u8]) -> String {
         .reduce(|s1, s2| s1 + &s2)
         .unwrap()
 }
+
+pub fn aws_dns_to_ip(uri: String) -> String {
+    let uri2 = uri.parse::<actix_web::http::Uri>().unwrap();
+    if uri2.host().unwrap().ends_with(".compute.amazonaws.com") {
+        let host = uri2
+            .host()
+            .unwrap()
+            .split('.')
+            .next()
+            .unwrap()
+            .strip_prefix("ec2-")
+            .unwrap()
+            .replace('-', ".");
+        format!(
+            "{}://{host}:{}",
+            uri2.scheme().unwrap(),
+            uri2.port().unwrap()
+        )
+    } else {
+        uri
+    }
+}
