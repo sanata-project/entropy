@@ -15,6 +15,7 @@ from common import (
 
 ARGV = dict(enumerate(sys.argv))
 HOST = ARGV.get(1, "10.0.0.1")
+EXTRA_ARGS = sys.argv[2:]
 WORK_DIR = pathlib.Path(__file__).absolute().parent
 
 
@@ -44,6 +45,7 @@ async def run_peers():
             OUTER_K,
             "--outer-n",
             OUTER_N,
+            *EXTRA_ARGS,
         ]
         if index < NUM_BENCHMARK_PEER:
             command.append("--benchmark")

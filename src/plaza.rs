@@ -74,14 +74,10 @@ pub struct PollMessage {
 #[get("/status")]
 #[tracing::instrument(skip(data))]
 pub async fn poll_status(data: Data<State>) -> HttpResponse {
-    HttpResponse::Ok().body(
-        bincode::options()
-            .serialize(&PollMessage {
-                shutdown: data.shutdown.load(SeqCst),
-                repair: data.repair.load(SeqCst),
-            })
-            .unwrap(),
-    )
+    HttpResponse::Ok().json(PollMessage {
+        shutdown: data.shutdown.load(SeqCst),
+        repair: data.repair.load(SeqCst),
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

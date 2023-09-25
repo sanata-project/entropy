@@ -33,6 +33,8 @@ struct Cli {
     #[clap(long)]
     benchmark: bool,
     #[clap(long)]
+    repair: bool,
+    #[clap(long)]
     num_host_peer: Option<usize>,
 
     #[clap(long, default_value_t = 4 << 20)]
@@ -62,6 +64,8 @@ fn main() {
                 .service(plaza::poll_ready)
                 .service(plaza::shutdown)
                 .service(plaza::poll_status)
+                .service(plaza::repair)
+                .service(plaza::repair_finish)
         })
         .bind((cli.host, 8080))
         .unwrap()
@@ -124,6 +128,7 @@ fn main() {
         outer_k: cli.outer_k,
         outer_n: cli.outer_n,
         chunk_path: chunk_path.clone(),
+        repair: cli.repair,
         peer: peer.clone(),
         peer_secret: signing_key,
     };
@@ -225,9 +230,10 @@ async fn plaza_session(
                 "{:?}",
                 response.body().await
             );
-            bincode::options()
-                .deserialize::<plaza::PollMessage>(&response.body().await.unwrap())
-                .unwrap()
+            // bincode::options()
+            //     .deserialize::<plaza::PollMessage>(&response.body().await.unwrap())
+            //     .unwrap()
+            response.json::<plaza::PollMessage>().await.unwrap()
         };
         let status = tokio::select! {
             status = status => status,

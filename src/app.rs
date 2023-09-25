@@ -66,6 +66,7 @@ pub struct StateConfig {
     pub outer_n: u32,
 
     pub chunk_path: PathBuf,
+    pub repair: bool,
 
     pub peer: Peer,
     pub peer_secret: ed25519_dalek::SigningKey,
@@ -139,15 +140,19 @@ impl State {
     pub fn inject(config: &mut ServiceConfig, state: Data<Self>) {
         config
             .app_data(state)
-            .service(benchmark_entropy)
-            .service(benchmark_entropy_get)
             .service(poll_benchmark)
+            .service(benchmark_put)
+            .service(benchmark_get)
             .service(entropy_upload_invite)
             .service(entropy_upload_query)
             .service(entropy_upload_push)
             .service(entropy_upload_members)
             .service(entropy_upload_up)
             .service(entropy_download_pull)
+            .service(entropy_repair_invite)
+            .service(entropy_repair_query)
+            .service(entropy_repair_push)
+            .service(entropy_repair_up)
             .service(kademlia_upload_push)
             .service(kademlia_download_pull);
     }
@@ -176,7 +181,7 @@ fn spawn<F: std::future::Future<Output = T> + 'static, T: Send + 'static>(
 }
 
 #[post("/benchmark/{protocol}")]
-async fn benchmark_entropy(data: Data<State>, protocol: Path<String>) -> impl Responder {
+async fn benchmark_put(data: Data<State>, protocol: Path<String>) -> impl Responder {
     let mut benchmarks = data.benchmarks.lock().unwrap();
     let id = benchmarks.len();
     let benchmark = Arc::new(Mutex::new(StateBenchmark::default()));
@@ -204,7 +209,7 @@ async fn benchmark_entropy(data: Data<State>, protocol: Path<String>) -> impl Re
 }
 
 #[post("/benchmark/{index}/{protocol}/get")]
-async fn benchmark_entropy_get(data: Data<State>, path: Path<(usize, String)>) -> impl Responder {
+async fn benchmark_get(data: Data<State>, path: Path<(usize, String)>) -> impl Responder {
     let (index, protocol) = path.into_inner();
     let benchmarks = data.benchmarks.lock().unwrap();
     let benchmark = benchmarks[index].clone();
@@ -226,6 +231,13 @@ async fn benchmark_entropy_get(data: Data<State>, path: Path<(usize, String)>) -
         _ => unimplemented!(),
     };
     HttpResponse::Ok()
+}
+
+#[get("/benchmark/{index}")]
+async fn poll_benchmark(data: Data<State>, index: Path<usize>) -> impl Responder {
+    let benchmarks = data.benchmarks.lock().unwrap();
+    let benchmark = benchmarks[index.into_inner()].lock().unwrap();
+    Json(benchmark.clone())
 }
 
 async fn entropy_put(
@@ -448,13 +460,6 @@ async fn entropy_push_fragment(
         "{:?}",
         response.body().await
     );
-}
-
-#[get("/benchmark/{index}")]
-async fn poll_benchmark(data: Data<State>, index: Path<usize>) -> impl Responder {
-    let benchmarks = data.benchmarks.lock().unwrap();
-    let benchmark = benchmarks[index.into_inner()].lock().unwrap();
-    Json(benchmark.clone())
 }
 
 #[post("/entropy/upload/query/{chunk_key}")]
@@ -711,7 +716,9 @@ async fn entropy_download_pull(data: Data<State>, path: Path<(String, u32)>) -> 
         .join(chunk_key)
         .join(index.to_string());
     let fragment = tokio::fs::read(&path).await.unwrap();
-    tokio::fs::remove_file(&path).await.unwrap();
+    if !data.config.repair {
+        tokio::fs::remove_file(&path).await.unwrap();
+    }
     fragment
 }
 
@@ -877,7 +884,9 @@ async fn kademlia_download_part(
 async fn kademlia_download_pull(data: Data<State>, part_id: Path<String>) -> impl Responder {
     let path = data.config.chunk_path.join(part_id.into_inner());
     let part = tokio::fs::read(&path).await.unwrap();
-    tokio::fs::remove_file(&path).await.unwrap();
+    if !data.config.repair {
+        tokio::fs::remove_file(&path).await.unwrap();
+    }
     part
 }
 
@@ -1140,7 +1149,7 @@ async fn entropy_repair_query(
 }
 
 #[post("/entropy/repair/push/{chunk_key}/{index}")]
-async fn entorpy_repair_push(
+async fn entropy_repair_push(
     data: Data<State>,
     path: Path<(String, u32)>,
     fragment: Bytes,

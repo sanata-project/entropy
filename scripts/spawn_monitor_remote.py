@@ -9,6 +9,7 @@ ARTIFACT = "./target/artifact/entropy"
 SCRIPT_SPAWN_MONITER = "./scripts/spawn_monitor.py"
 SCRIPT_COMMON = "./scripts/common.py"
 HOSTS_TXT = "./scripts/hosts.txt"
+EXTRA_ARGS = sys.argv[1:]
 
 
 async def upload_artifact():
@@ -41,7 +42,9 @@ async def run_remotes():
         #     ssh_host = host
         #     host = f"{match[1]}.{match[2]}.{match[3]}.{match[4]}"
         proc = await asyncio.create_subprocess_shell(
-            f"ssh {host} python3 {WORK_DIR}/spawn_monitor.py {host}"
+            " ".join(
+                [f"ssh {host} python3 {WORK_DIR}/spawn_monitor.py {host}", *EXTRA_ARGS]
+            )
         )
         tasks.append(proc.wait())
     codes = await asyncio.gather(*tasks)

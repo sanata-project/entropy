@@ -6,7 +6,7 @@ edition = "2021"
 [profile.artifact]
 inherits = "release"
 panic = "abort"
-strip = true
+# strip = true
 # lto = true
 # codegen-units = 1
 
