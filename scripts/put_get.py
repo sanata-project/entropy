@@ -30,11 +30,11 @@ async def ready():
 async def put_get(peer):
     async with aiohttp.ClientSession() as session:
         print(f"commit put operation on {peer}")
-        async with session.post(f"{peer}/benchmark/put") as resp:
-            put_id = await resp.json()
+        async with session.post(f"{peer}/benchmark/entropy") as resp:
+            benchmark_id = await resp.json()
         while True:
             await asyncio.sleep(1)
-            async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
+            async with session.get(f"{peer}/benchmark/{benchmark_id}") as resp:
                 result = await resp.json()
                 if result["put_end"]:
                     break
@@ -43,16 +43,16 @@ async def put_get(peer):
         await asyncio.sleep(1)
 
         print(f"commit get operation on {peer}")
-        await session.post(f"{peer}/benchmark/get/{put_id}")
+        await session.post(f"{peer}/benchmark/entropy/{benchmark_id}/get")
         while True:
             await asyncio.sleep(1)
-            async with session.get(f"{peer}/benchmark/put/{put_id}") as resp:
+            async with session.get(f"{peer}/benchmark/{benchmark_id}") as resp:
                 result = await resp.json()
                 if result["get_end"]:
                     break
         latency = to_timestamp(result["get_end"]) - to_timestamp(result["get_start"])
         print(f",{peer},get,{latency}")
-        await asyncio.sleep(5)
+        await asyncio.sleep(1)
 
 
 async def operation(peers):
@@ -76,7 +76,7 @@ async def main():
             tasks, return_when=asyncio.FIRST_COMPLETED
         )
         for done_task in done_tasks:
-            assert done_task.exception() is None
+            assert done_task.exception() is None, done_task.exception()
             if num_operation < NUM_OPERATION:
                 num_operation += 1
                 tasks.add(asyncio.create_task(operation(peers)))

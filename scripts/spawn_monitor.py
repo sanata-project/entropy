@@ -42,16 +42,16 @@ async def run_peers():
             PLAZA,
             "--num-host-peer",
             NUM_PEER,
-            # "--fragment-size",
-            # FRAGMENT_SIZE,
-            # "--inner-k",
-            # INNER_K,
-            # "--inner-n",
-            # INNER_N,
-            # "--outer-k",
-            # OUTER_K,
-            # "--outer-n",
-            # OUTER_N,
+            "--fragment-size",
+            FRAGMENT_SIZE,
+            "--inner-k",
+            INNER_K,
+            "--inner-n",
+            INNER_N,
+            "--outer-k",
+            OUTER_K,
+            "--outer-n",
+            OUTER_N,
         ]
         if index < NUM_BENCHMARK_PEER:
             command.append("--benchmark")
@@ -89,7 +89,8 @@ async def shutdown_peers():
 
 
 async def main():
-    # await prepare()
+    if HOST.endswith('compute.amazonaws.com'):
+        await prepare()
     # print("run peers")
     if await run_peers():
         exit(1)

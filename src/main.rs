@@ -7,17 +7,17 @@ use actix_web::{
 };
 use clap::Parser;
 use opentelemetry::KeyValue;
-use tokio::{spawn, sync::mpsc, time::sleep};
+use tokio::{spawn, time::sleep};
 use tokio_util::{sync::CancellationToken, task::LocalPoolHandle};
 
 use crate::{common::hex_string, peer::Peer};
 
 mod app;
-mod chunk;
 mod common;
 mod peer;
 mod plaza;
-mod app2;
+
+type ChunkKey = [u8; 32];
 
 #[derive(clap::Parser)]
 struct Cli {
@@ -109,32 +109,30 @@ fn main() {
         .join("entropy_chunk")
         .join(common::hex_string(&peer.id));
     std::fs::create_dir_all(&chunk_path).unwrap();
-    let chunk_store = chunk::Store::new(chunk_path.clone(), cli.fragment_size, cli.inner_k);
+    // let chunk_store = chunk::Store::new(chunk_path.clone(), cli.fragment_size, cli.inner_k);
 
-    let local = LocalPoolHandle::new(if cli.benchmark {
+    let pool = LocalPoolHandle::new(if cli.benchmark {
         std::thread::available_parallelism().unwrap().into()
     } else {
         1
     });
-    let messages = mpsc::unbounded_channel();
-    let mut state = app::State::new(
-        peer.clone(),
-        signing_key,
-        cli.fragment_size,
-        cli.inner_n,
-        cli.inner_k,
-        cli.outer_n,
-        cli.outer_k,
-        peer_store,
-        chunk_store,
-        local.clone(),
-        messages.0.downgrade(),
-    );
+    let config = app::StateConfig {
+        fragment_size: cli.fragment_size,
+        inner_k: cli.inner_k,
+        inner_n: cli.inner_n,
+        outer_k: cli.outer_k,
+        outer_n: cli.outer_n,
+        chunk_path: chunk_path.clone(),
+        peer: peer.clone(),
+        peer_secret: signing_key,
+    };
+    let state = Data::new(app::State::new(config, pool.clone(), peer_store));
     let server = HttpServer::new(move || {
+        let state = state.clone();
         App::new()
             .wrap(actix_web_opentelemetry::RequestTracing::new())
-            .configure(|config| app::State::setup(config, messages.0.clone()))
-            .app_data(PayloadConfig::new(8 << 20))
+            .configure(|config| app::State::inject(config, state))
+            .app_data(PayloadConfig::new(16 << 20))
     });
     let server = if !cli.benchmark {
         server.workers(1)
@@ -162,10 +160,10 @@ fn main() {
             ]);
 
             let server_handle = server.handle();
-            spawn(server);
+            let server = spawn(server);
 
             let shutdown = CancellationToken::new();
-            local.spawn_pinned({
+            pool.spawn_pinned({
                 let plaza = cli.plaza.clone().unwrap();
                 let shutdown = shutdown.clone();
                 move || plaza_session(plaza, shutdown.clone())
@@ -175,7 +173,7 @@ fn main() {
                 shutdown.cancelled().await;
                 server_handle.stop(true).await;
             });
-            state.run(messages.1).await;
+            server.await.unwrap().unwrap();
 
             tokio::task::spawn_blocking(common::shutdown_tracing)
                 .await

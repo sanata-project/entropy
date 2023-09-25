@@ -1,8 +1,8 @@
 use std::{
     collections::{HashMap, HashSet},
-    future::Future,
-    ops::Range,
-    sync::Arc,
+    iter::repeat,
+    path::PathBuf,
+    sync::{Arc, Mutex},
     time::SystemTime,
 };
 
@@ -11,28 +11,20 @@ use actix_web::{
     http::StatusCode,
     post,
     web::{Bytes, Data, Json, Path, ServiceConfig},
-    HttpResponse,
+    HttpResponse, Responder,
 };
 use actix_web_opentelemetry::ClientExt;
 use awc::Client;
-use ed25519_dalek::{Signer, SigningKey};
-use opentelemetry::{trace::FutureExt, Context};
-use rand::{thread_rng, RngCore};
+use bincode::Options;
+use opentelemetry::trace::FutureExt;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::{
-    sync::{mpsc, oneshot},
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc, task::JoinSet};
 use tokio_util::{sync::CancellationToken, task::LocalPoolHandle};
-use tracing::{info, instrument};
 use wirehair::{WirehairDecoder, WirehairEncoder};
 
-use crate::{
-    chunk::{self, ChunkKey},
-    common::hex_string,
-    peer::{self, Peer},
-};
+use crate::{common::hex_string, peer, ChunkKey, Peer};
 
 fn fragment_id(key: &ChunkKey, index: u32) -> [u8; 32] {
     Sha256::new()
@@ -50,931 +42,622 @@ fn parse_key(s: &str) -> ChunkKey {
     key.try_into().unwrap()
 }
 
-enum AppCommand {
-    Put(oneshot::Sender<usize>),
-    PutStatus(usize, oneshot::Sender<PutState>),
-    Get(usize),
-
-    UploadInvite(ChunkKey, u32, Peer, oneshot::Sender<bool>),
-    UploadQueryFragment(ChunkKey, ChunkMember),
-    UploadPushFragment(ChunkKey, Bytes),
-    UploadPushMembers(ChunkKey, Vec<ChunkMember>, Peer),
-    UploadOk(ChunkKey, PingMessage),
-    DownloadQueryFragment(ChunkKey, Peer),
-    DownloadPushFragment(ChunkKey, u32, Bytes),
-    RepairInvite(ChunkKey, u32, Vec<ChunkMember>, oneshot::Sender<bool>),
-    RepairQueryFragment(ChunkKey, ChunkMember),
-    RepairPushFragment(ChunkKey, u32, Bytes),
-    RepairOk(ChunkKey, PingMessage),
-
-    UploadChunk(usize, u32, Vec<u8>),
-    UploadExtraInvite(ChunkKey),
-    AcceptRepairFragment(ChunkKey, u32, Bytes),
-    RepairRecoverFinish(ChunkKey, Vec<u8>),
-    DownloadFinish(ChunkKey, Vec<u8>),
-}
-
-pub struct StateMessage {
-    command: AppCommand,
-    context: Context,
-}
-
-impl From<AppCommand> for StateMessage {
-    fn from(value: AppCommand) -> Self {
-        Self {
-            command: value,
-            context: Context::current(),
-        }
-    }
-}
-
-type AppState = mpsc::UnboundedSender<StateMessage>;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ChunkMember {
-    peer: Peer,
-    index: u32,
-    proof: (),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct PingMessage {
-    members: Vec<ChunkMember>,
-    index: u32,
-    time: SystemTime,
-    signature: ed25519_dalek::Signature,
-}
-
-#[post("/upload/invite/{key}/{index}")]
-#[instrument(skip(data))]
-async fn upload_invite(
-    data: Data<AppState>,
-    path: Path<(String, u32)>,
-    message: Json<Peer>,
-) -> HttpResponse {
-    let result = oneshot::channel();
-    data.send(AppCommand::UploadInvite(parse_key(&path.0), path.1, message.0, result.0).into())
-        .unwrap();
-    if result.1.await.unwrap() {
-        HttpResponse::Ok().finish()
-    } else {
-        HttpResponse::new(StatusCode::IM_A_TEAPOT)
-    }
-}
-
-// a little bit tricky whether this should be GET or PUT
-// on the one hand this mutates the uploader's state by recording a new valid
-// chunk member, and even triggers side effect of PushMembers
-// on the other hand other QueryFragment i.e. during downloading and repairing
-// are immutable operations and should be GET
-// this is finally decided to be GET because essentially it is a shorthand of
-// - GET /upload/query-fragment/{key} to query fragment
-// - POST /upload/pre-ok/{key} to register member (which is omitted)
-// it is uploader's internal detail that the QueryFragment also serves as a
-// registration and should not be exposed to the interface
-#[get("/upload/query/{key}")]
-#[instrument(skip(data))]
-async fn upload_query_fragment(
-    data: Data<AppState>,
-    path: Path<String>,
-    message: Json<ChunkMember>,
-) -> HttpResponse {
-    data.send(AppCommand::UploadQueryFragment(parse_key(&path), message.0).into())
-        .unwrap();
-    HttpResponse::Ok().finish()
-}
-
-#[post("/upload/fragment/{key}")]
-#[instrument(skip(data))]
-async fn upload_push_fragment(
-    data: Data<AppState>,
-    path: Path<String>,
-    payload: Bytes,
-) -> HttpResponse {
-    data.send(AppCommand::UploadPushFragment(parse_key(&path), payload).into())
-        .unwrap();
-    HttpResponse::Ok().finish()
-}
-
-#[post("/upload/members/{key}")]
-#[instrument(skip(data, message))]
-async fn upload_push_members(
-    data: Data<AppState>,
-    path: Path<String>,
-    message: Json<(Vec<ChunkMember>, Peer)>,
-) -> HttpResponse {
-    let (members, peer) = message.into_inner();
-    data.send(AppCommand::UploadPushMembers(parse_key(&path), members, peer).into())
-        .unwrap();
-    HttpResponse::Ok().finish()
-}
-
-#[post("/upload/ok/{key}")]
-async fn upload_ok(
-    data: Data<AppState>,
-    path: Path<String>,
-    message: Json<PingMessage>,
-) -> HttpResponse {
-    data.send(AppCommand::UploadOk(parse_key(&path), message.0).into())
-        .unwrap();
-    HttpResponse::Ok().finish()
-}
-
-#[get("/download/query/{key}")]
-#[instrument(skip(data))]
-async fn download_query_fragment(
-    data: Data<AppState>,
-    path: Path<String>,
-    message: Json<Peer>,
-) -> HttpResponse {
-    data.send(AppCommand::DownloadQueryFragment(parse_key(&path), message.0).into())
-        .unwrap();
-    HttpResponse::Ok().finish()
-}
-
-#[post("/download/fragment/{key}/{index}")]
-#[instrument(skip(data))]
-async fn download_push_fragment(
-    data: Data<AppState>,
-    path: Path<(String, u32)>,
-    payload: Bytes,
-) -> HttpResponse {
-    data.send(AppCommand::DownloadPushFragment(parse_key(&path.0), path.1, payload).into())
-        .unwrap();
-    HttpResponse::Ok().finish()
-}
-
-#[post("/repair/invite/{key}/{index}")]
-#[instrument(skip(data, message))]
-async fn repair_invite(
-    data: Data<AppState>,
-    path: Path<(String, u32)>,
-    message: Json<Vec<ChunkMember>>,
-) -> HttpResponse {
-    let result = oneshot::channel();
-    data.send(AppCommand::RepairInvite(parse_key(&path.0), path.1, message.0, result.0).into())
-        .unwrap();
-    if result.1.await.unwrap() {
-        HttpResponse::Ok().finish()
-    } else {
-        HttpResponse::new(StatusCode::IM_A_TEAPOT)
-    }
-}
-
-#[get("/repair/query/{key}")]
-#[instrument(skip(data))]
-async fn repair_query_fragment(
-    data: Data<AppState>,
-    path: Path<String>,
-    message: Json<ChunkMember>,
-) -> HttpResponse {
-    data.send(AppCommand::RepairQueryFragment(parse_key(&path), message.0).into())
-        .unwrap();
-    HttpResponse::Ok().finish()
-}
-
-#[post("/repair/ok/{key}")]
-#[instrument(skip(data, message))]
-async fn repair_ok(
-    data: Data<AppState>,
-    path: Path<String>,
-    message: Json<PingMessage>,
-) -> HttpResponse {
-    data.send(AppCommand::RepairOk(parse_key(&path), message.0).into())
-        .unwrap();
-    HttpResponse::Ok().finish()
-}
-
-#[post("/repair/fragment/{key}/{index}")]
-#[instrument(skip(data))]
-async fn repair_push_fragment(
-    data: Data<AppState>,
-    path: Path<(String, u32)>,
-    payload: Bytes,
-) -> HttpResponse {
-    data.send(AppCommand::RepairPushFragment(parse_key(&path.0), path.1, payload).into())
-        .unwrap();
-    HttpResponse::Ok().finish()
-}
-
-#[post("/benchmark/put")]
-#[instrument(skip(data))]
-async fn benchmark_put(data: Data<AppState>) -> HttpResponse {
-    let result = oneshot::channel();
-    data.send(AppCommand::Put(result.0).into()).unwrap();
-    HttpResponse::Ok().json(result.1.await.unwrap())
-}
-
-#[post("/benchmark/get/{id}")]
-#[instrument(skip(data))]
-async fn benchmark_get(data: Data<AppState>, path: Path<usize>) -> HttpResponse {
-    data.send(AppCommand::Get(path.into_inner()).into())
-        .unwrap();
-    HttpResponse::Ok().finish()
-}
-
-#[get("/benchmark/put/{id}")]
-#[instrument(skip(data))]
-async fn benchmark_put_status(data: Data<AppState>, path: Path<usize>) -> HttpResponse {
-    let result = oneshot::channel();
-    data.send(AppCommand::PutStatus(path.into_inner(), result.0).into())
-        .unwrap();
-    HttpResponse::Ok().json(result.1.await.unwrap())
-}
-
-#[derive(Debug)]
 pub struct State {
-    local_peer: Peer,
-    local_secret: SigningKey,
-
-    fragment_size: u32,
-    inner_n: u32,
-    inner_k: u32,
-    outer_n: u32,
-    outer_k: u32,
-
-    peer_store: peer::Store,
-    chunk_store: chunk::Store,
-
-    chunk_states: HashMap<ChunkKey, ChunkState>,
-    put_states: Vec<PutState>,
-    put_uploads: HashMap<ChunkKey, UploadChunkState>,
-    get_recovers: HashMap<usize, WirehairDecoder>,
-
-    messages: mpsc::WeakUnboundedSender<StateMessage>,
-    local: LocalPoolHandle,
-    client_resource: Arc<tokio::sync::Mutex<()>>,
+    config: Arc<StateConfig>,
+    pool: LocalPoolHandle,
+    benchmarks: Mutex<Vec<Arc<Mutex<StateBenchmark>>>>,
+    upload_chunk_states: Arc<Mutex<HashMap<ChunkKey, UploadChunkState>>>,
+    chunk_states: Arc<Mutex<HashMap<ChunkKey, ChunkState>>>,
+    peer_store: Arc<Mutex<peer::Store>>,
 }
 
-#[derive(Debug)]
-struct ChunkState {
-    local_index: u32,
-    members: Vec<ChunkMember>,
-    pinged: HashSet<u32>,
-    indexes: Range<u32>,
-    fragment_present: CancellationToken,
+#[derive(Debug, Clone)]
+pub struct StateConfig {
+    pub fragment_size: u32,
+    pub inner_k: u32,
+    pub inner_n: u32,
+    pub outer_k: u32,
+    pub outer_n: u32,
+
+    pub chunk_path: PathBuf,
+
+    pub peer: Peer,
+    pub peer_secret: ed25519_dalek::SigningKey,
+}
+
+impl StateConfig {
+    fn object_size(&self) -> u64 {
+        self.chunk_size() as u64 * self.outer_k as u64
+    }
+
+    fn chunk_size(&self) -> u32 {
+        self.fragment_size * self.inner_k
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+struct StateBenchmark {
+    object_hash: [u8; 32],
+    put_start: Option<SystemTime>,
+    put_end: Option<SystemTime>,
+    get_start: Option<SystemTime>,
+    get_end: Option<SystemTime>,
+    #[serde(skip)]
+    chunk_keys: Vec<ChunkKey>,
 }
 
 #[derive(Debug, Clone)]
 struct UploadChunkState {
-    benchmark_id: usize,
     chunk_index: u32,
-    members: Vec<ChunkMember>,
-    next_invite: u32,
-    present_fragments: HashSet<u32>,
-    recovered: bool,
+    members: HashMap<u32, ChunkMember>,
+    query: mpsc::UnboundedSender<ChunkMember>,
+    up: mpsc::UnboundedSender<(u32, Bytes)>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-struct PutState {
-    key: [u8; 32],
-    uploads: HashSet<ChunkKey>,
-    put_start: SystemTime,
-    put_end: Option<SystemTime>,
-    get_start: Option<SystemTime>,
-    get_end: Option<SystemTime>,
+#[derive(Debug)]
+struct ChunkState {
+    index: u32,
+    members: HashMap<u32, ChunkMember>,
+    has_fragment: CancellationToken,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ChunkMember {
+    index: u32,
+    peer: Peer,
+    proof: (),
 }
 
 impl State {
-    pub fn new(
-        local_peer: Peer,
-        local_secret: SigningKey,
-        fragment_size: u32,
-        inner_n: u32,
-        inner_k: u32,
-        outer_n: u32,
-        outer_k: u32,
-        peer_store: peer::Store,
-        chunk_store: chunk::Store,
-        local: LocalPoolHandle,
-        messages: mpsc::WeakUnboundedSender<StateMessage>,
-    ) -> Self {
-        State {
-            local_peer,
-            local_secret,
-            fragment_size,
-            inner_n,
-            inner_k,
-            outer_n,
-            outer_k,
-            peer_store,
-            chunk_store,
+    pub fn new(config: StateConfig, pool: LocalPoolHandle, peer_store: peer::Store) -> Self {
+        Self {
+            config: Arc::new(config),
+            pool,
+            benchmarks: Default::default(),
+            upload_chunk_states: Default::default(),
             chunk_states: Default::default(),
-            put_states: Default::default(),
-            put_uploads: Default::default(),
-            get_recovers: Default::default(),
-            messages,
-            local,
-            client_resource: Default::default(),
+            peer_store: Arc::new(Mutex::new(peer_store)),
         }
     }
 
-    pub async fn run(&mut self, mut messages: mpsc::UnboundedReceiver<StateMessage>) {
-        while let Some(message) = messages.recv().await {
-            let _attach = message.context.attach();
-            match message.command {
-                AppCommand::Put(result) => self.handle_put(result),
-                AppCommand::PutStatus(id, result) => self.handle_put_state(id, result),
-                AppCommand::Get(id) => self.handle_get(id),
-
-                AppCommand::UploadChunk(id, index, chunk) => {
-                    self.handle_upload_chunk(id, index, chunk)
-                }
-                AppCommand::UploadInvite(key, index, message, result) => {
-                    self.handle_upload_invite(&key, index, message, result)
-                }
-                AppCommand::UploadExtraInvite(key) => self.handle_upload_extra_invite(&key),
-                AppCommand::UploadQueryFragment(key, message) => {
-                    self.handle_upload_query_fragment(&key, message)
-                }
-                AppCommand::UploadPushFragment(key, fragment) => {
-                    self.handle_upload_push_fragment(&key, fragment)
-                }
-                AppCommand::UploadPushMembers(key, members, peer) => {
-                    self.handle_upload_push_members(&key, members, peer)
-                }
-                AppCommand::UploadOk(key, message) => self.handle_upload_ok(&key, message),
-
-                AppCommand::DownloadQueryFragment(key, peer) => {
-                    self.handle_download_query_fragment(&key, peer)
-                }
-                AppCommand::DownloadPushFragment(key, index, fragment) => {
-                    self.handle_download_push_fragment(&key, index, fragment)
-                }
-                AppCommand::DownloadFinish(key, chunk) => self.handle_download_finish(&key, chunk),
-
-                AppCommand::RepairInvite(key, index, message, result) => {
-                    self.handle_repair_invite(&key, index, message, result)
-                }
-                AppCommand::RepairQueryFragment(key, message) => {
-                    self.handle_repair_query_fragment(&key, message)
-                }
-                AppCommand::RepairPushFragment(key, index, fragment) => {
-                    self.handle_repair_push_fragment(&key, index, fragment)
-                }
-                AppCommand::RepairOk(key, message) => self.handle_ping(&key, message),
-                AppCommand::RepairRecoverFinish(key, fragment) => {
-                    self.handle_recover_finish(&key, fragment)
-                }
-                _ => todo!(),
-            }
-        }
-    }
-
-    pub fn setup(config: &mut ServiceConfig, app_data: AppState) {
+    pub fn inject(config: &mut ServiceConfig, state: Data<Self>) {
         config
-            .app_data(Data::new(app_data))
-            .service(upload_invite)
-            .service(upload_query_fragment)
-            .service(upload_push_fragment)
-            .service(upload_push_members)
-            .service(upload_ok)
-            .service(download_query_fragment)
-            .service(download_push_fragment)
-            .service(repair_invite)
-            .service(repair_query_fragment)
-            .service(repair_push_fragment)
-            .service(repair_ok)
-            .service(benchmark_put)
-            .service(benchmark_put_status)
-            .service(benchmark_get);
+            .app_data(state)
+            .service(benchmark_entropy)
+            .service(benchmark_entropy_get)
+            .service(poll_benchmark)
+            .service(entropy_upload_invite)
+            .service(entropy_upload_query)
+            .service(entropy_upload_push)
+            .service(entropy_upload_members)
+            .service(entropy_upload_up)
+            .service(entropy_download_pull);
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ChunkMembersMessage {
+    members: HashMap<u32, ChunkMember>,
+    uploader: Peer,
+}
+
+fn spawn<F: std::future::Future<Output = T> + 'static, T: Send + 'static>(
+    pool: &LocalPoolHandle,
+    create: impl FnOnce() -> F + Send + 'static,
+) -> tokio::task::JoinHandle<T> {
+    let context = opentelemetry::Context::current();
+    pool.spawn_pinned(move || create().with_context(context))
+}
+
+#[post("/benchmark/entropy")]
+async fn benchmark_entropy(data: Data<State>) -> impl Responder {
+    let mut benchmarks = data.benchmarks.lock().unwrap();
+    let id = benchmarks.len();
+    let benchmark = Arc::new(Mutex::new(StateBenchmark::default()));
+    benchmarks.push(benchmark.clone());
+
+    let upload_chunk_states = data.upload_chunk_states.clone();
+    let peer_store = data.peer_store.clone();
+    let config = data.config.clone();
+    let pool = data.pool.clone();
+    spawn(&data.pool, move || {
+        entropy_put(benchmark, upload_chunk_states, peer_store, config, pool)
+    });
+    Json(id)
+}
+
+#[post("/benchmark/entropy/{index}/get")]
+async fn benchmark_entropy_get(data: Data<State>, index: Path<usize>) -> impl Responder {
+    let benchmarks = data.benchmarks.lock().unwrap();
+    let benchmark = benchmarks[index.into_inner()].clone();
+    let upload_chunk_states = data.upload_chunk_states.clone();
+    let config = data.config.clone();
+    let pool = data.pool.clone();
+    spawn(&data.pool, move || {
+        entropy_get(benchmark, upload_chunk_states, config, pool)
+    });
+    HttpResponse::Ok()
+}
+
+async fn entropy_put(
+    benchmark: Arc<Mutex<StateBenchmark>>,
+    upload_chunk_states: Arc<Mutex<HashMap<ChunkKey, UploadChunkState>>>,
+    peer_store: Arc<Mutex<peer::Store>>,
+    config: Arc<StateConfig>,
+    pool: LocalPoolHandle,
+) {
+    let mut object = vec![0; config.object_size() as usize];
+    rand::thread_rng().fill_bytes(&mut object);
+    let object_hash = Sha256::digest(&object);
+    {
+        let mut benchmark = benchmark.lock().unwrap();
+        benchmark.object_hash = object_hash.into();
+        benchmark.put_start = Some(SystemTime::now());
     }
 
-    fn spawn<F: Future<Output = T> + 'static, T: Send + 'static>(
-        local: LocalPoolHandle,
-        create: impl FnOnce() -> F + Send + 'static,
-    ) -> JoinHandle<T> {
-        let context = Context::current();
-        local.spawn_pinned(move || create().with_context(context))
+    let chunk_encoder = Arc::new(WirehairEncoder::new(object, config.chunk_size()));
+    let upload_chunks = Vec::from_iter(
+        (0..config.outer_n)
+            .zip(repeat((
+                benchmark.clone(),
+                upload_chunk_states,
+                chunk_encoder,
+                peer_store,
+                config,
+                pool.clone(),
+            )))
+            .map(
+                |(
+                    chunk_index,
+                    (
+                        benchmark,
+                        upload_chunk_states,
+                        chunk_encoder,
+                        peer_store,
+                        config,
+                        cloned_pool,
+                    ),
+                )| {
+                    spawn(&pool, move || {
+                        entropy_upload_chunk(
+                            benchmark,
+                            upload_chunk_states,
+                            chunk_encoder,
+                            chunk_index,
+                            peer_store,
+                            config,
+                            cloned_pool,
+                        )
+                    })
+                },
+            ),
+    );
+    for upload_chunk in upload_chunks {
+        upload_chunk.await.unwrap();
     }
+    let mut benchmark = benchmark.lock().unwrap();
+    benchmark.put_end = Some(SystemTime::now());
+}
 
-    #[instrument(skip(self))]
-    fn handle_put(&mut self, result: oneshot::Sender<usize>) {
-        if let Some(put_state) = self.put_states.last() {
-            if put_state.put_end.is_none() {
-                tracing::warn!("previous PUT operation not end");
-            }
+async fn entropy_upload_chunk(
+    benchmark: Arc<Mutex<StateBenchmark>>,
+    upload_chunk_states: Arc<Mutex<HashMap<ChunkKey, UploadChunkState>>>,
+    chunk_encoder: Arc<WirehairEncoder>,
+    chunk_index: u32,
+    peer_store: Arc<Mutex<peer::Store>>,
+    config: Arc<StateConfig>,
+    pool: LocalPoolHandle,
+) {
+    let mut chunk = vec![0; config.chunk_size() as usize];
+    chunk_encoder.encode(chunk_index, &mut chunk).unwrap();
+    let chunk_key = Sha256::digest(&chunk).into();
+    benchmark.lock().unwrap().chunk_keys.push(chunk_key);
+
+    let mut peers = HashMap::new();
+    let mut peer_id_index = HashMap::new();
+    for index in 0..config.inner_n * 2 {
+        let peer = peer_store
+            .lock()
+            .unwrap()
+            .closest_peers(&fragment_id(&chunk_key, index), 1)[0]
+            .clone();
+        if let Some(duplicated_index) = peer_id_index.insert(peer.id, index) {
+            peers.remove(&duplicated_index).unwrap();
         }
+        peers.insert(index, peer);
+        if peers.len() == config.inner_n as usize {
+            break;
+        }
+    }
+    assert_eq!(peers.len(), config.inner_n as usize);
 
-        let id = self.put_states.len();
-        let _ = result.send(id);
+    let mut query = mpsc::unbounded_channel();
+    let mut up = mpsc::unbounded_channel();
+    let chunk_state = UploadChunkState {
+        chunk_index,
+        members: Default::default(),
+        query: query.0,
+        up: up.0,
+    };
+    upload_chunk_states
+        .lock()
+        .unwrap()
+        .insert(chunk_key, chunk_state);
 
-        let mut object = vec![0; (self.fragment_size * self.inner_k * self.outer_k) as _];
-        tracing::info_span!("generate object").in_scope(|| {
-            thread_rng().fill_bytes(&mut object);
+    let hex_key = hex_string(&chunk_key);
+    let message = Bytes::from(bincode::options().serialize(&config.peer).unwrap());
+    for ((index, peer), (hex_key, message)) in
+        peers.into_iter().zip(repeat((hex_key.clone(), message)))
+    {
+        spawn(&pool, move || async move {
+            let mut response = Client::new()
+                .post(format!(
+                    "{}/entropy/upload/invite/{hex_key}/{index}",
+                    peer.uri
+                ))
+                .trace_request()
+                .send_body(message)
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                StatusCode::OK,
+                "{:?}",
+                response.body().await
+            );
         });
-        self.put_states.push(PutState {
-            key: Sha256::digest(&object).into(),
-            uploads: Default::default(),
-            put_start: SystemTime::now(),
-            put_end: None,
-            get_start: None,
-            get_end: None,
-        });
-        let encoder = tracing::info_span!("create encoder").in_scope(|| {
-            Arc::new(WirehairEncoder::new(
-                object,
-                self.fragment_size * self.inner_k,
-            ))
-        });
-        for outer_index in 0..self.outer_n {
+    }
+
+    let encoder = Arc::new(WirehairEncoder::new(chunk, config.fragment_size));
+
+    let members = loop {
+        let member = query
+            .1
+            .recv()
+            .await
+            .expect("upload chunk quit while receiving query");
+        {
+            let index = member.index;
             let encoder = encoder.clone();
-            let fragment_size = self.fragment_size;
-            let inner_k = self.inner_k;
-            let messages = self.messages.clone();
-            Self::spawn(self.local.clone(), move || async move {
-                let mut chunk = vec![0; (fragment_size * inner_k) as _];
-                tracing::info_span!("encode chunk", outer_index).in_scope(|| {
-                    encoder.encode(outer_index, &mut chunk).unwrap();
-                });
-                messages
-                    .upgrade()?
-                    .send(AppCommand::UploadChunk(id, outer_index, chunk).into())
-                    .ok()?;
-                Some(())
+            let peer = member.peer.clone();
+            let config = config.clone();
+            spawn(&pool, move || {
+                entropy_push_fragment(chunk_key, index, encoder, peer, config)
             });
         }
-    }
 
-    #[instrument(skip(self))]
-    fn handle_upload_chunk(&mut self, id: usize, index: u32, chunk: Vec<u8>) {
-        let key = tracing::info_span!("create upload chunk")
-            .in_scope(|| self.chunk_store.upload_chunk(chunk));
-        self.put_uploads.insert(
-            key,
-            UploadChunkState {
-                benchmark_id: id,
-                chunk_index: index,
-                members: Default::default(),
-                next_invite: self.inner_n,
-                present_fragments: Default::default(),
-                recovered: false,
-            },
-        );
-        for inner_index in 0..self.inner_n {
-            self.upload_invite(&key, inner_index);
+        let mut upload_chunk_states = upload_chunk_states.lock().unwrap();
+        let members = &mut upload_chunk_states.get_mut(&chunk_key).unwrap().members;
+        members.insert(member.index, member);
+        if members.len() == config.inner_n as usize {
+            break members.clone();
         }
-    }
+    };
 
-    fn upload_invite(&self, key: &ChunkKey, index: u32) {
-        let peer = self.peer_store.closest_peers(&fragment_id(key, index), 1)[0];
-        let hex_key = hex_string(key);
-        let peer_uri = peer.uri.clone();
-        let local_peer = self.local_peer.clone();
-        let messages = self.messages.clone();
-        let key = *key;
-        let client_resource = self.client_resource.clone();
-        Self::spawn(self.local.clone(), move || async move {
-            let _lock = client_resource.lock().await;
-            let response = Client::new()
-                .post(format!("{}/upload/invite/{hex_key}/{index}", peer_uri))
+    let message = Bytes::from(
+        bincode::options()
+            .serialize(&ChunkMembersMessage {
+                members: members.clone(),
+                uploader: config.peer.clone(),
+            })
+            .unwrap(),
+    );
+    for (member, (hex_key, message)) in members.values().zip(repeat((hex_key, message))) {
+        let uri = member.peer.uri.clone();
+        spawn(&pool, move || async move {
+            let mut response = Client::new()
+                .post(format!("{uri}/entropy/upload/members/{hex_key}"))
                 .trace_request()
-                .send_json(&local_peer)
+                .send_body(message)
                 .await
                 .unwrap();
-            if response.status() != StatusCode::OK {
-                messages
-                    .upgrade()?
-                    .send(AppCommand::UploadExtraInvite(key).into())
-                    .ok()?;
-            }
-            Some(())
-        });
-    }
-
-    #[instrument(skip(self))]
-    fn handle_upload_extra_invite(&mut self, key: &ChunkKey) {
-        let put_upload = self.put_uploads.get_mut(key).unwrap();
-        let index = put_upload.next_invite;
-        put_upload.next_invite += 1;
-        self.upload_invite(key, index);
-    }
-
-    #[instrument(skip(self))]
-    fn handle_upload_invite(
-        &mut self,
-        key: &ChunkKey,
-        index: u32,
-        message: Peer,
-        result: oneshot::Sender<bool>,
-    ) {
-        let local_member = if let Some(chunk_state) = self.chunk_states.get(key) {
-            // if chunk_state.fragment_present.is_cancelled() {
-            //     let _ = result.send(true);
-            //     return;
-            // }
-            chunk_state
-                .members
-                .iter()
-                .find(|member| member.peer.id == self.local_peer.id)
-                .unwrap()
-                .clone()
-        } else {
-            let mut chunk_state = ChunkState {
-                local_index: index,
-                members: Default::default(),
-                pinged: Default::default(),
-                indexes: 0..1, // TODO
-                fragment_present: CancellationToken::new(),
-            };
-            // TODO generate proof
-            let local_member = ChunkMember {
-                peer: self.local_peer.clone(),
-                index,
-                proof: (),
-            };
-            chunk_state.members.push(local_member.clone());
-            self.chunk_states.insert(*key, chunk_state);
-            local_member
-        };
-        if local_member.index != index {
-            info!(
-                local_index = local_member.index,
-                index, "reject duplicated invite"
+            assert_eq!(
+                response.status(),
+                StatusCode::OK,
+                "{:?}",
+                response.body().await
             );
-            let _ = result.send(false);
-            return; //
-        }
+        });
+    }
 
-        let hex_key = hex_string(key);
-        Self::spawn(self.local.clone(), move || async move {
-            Client::new()
-                .get(format!("{}/upload/query/{hex_key}", message.uri))
-                .trace_request()
-                .send_json(&local_member)
+    let mut waiting_up = HashSet::new();
+    waiting_up.extend(members.keys().copied());
+    while !waiting_up.is_empty() {
+        let (index, _signature) =
+            up.1.recv()
                 .await
-                .unwrap();
-            Some(())
-        });
-        let _ = result.send(true);
-    }
-
-    #[instrument(skip(self))]
-    fn handle_upload_query_fragment(&mut self, key: &ChunkKey, message: ChunkMember) {
-        let upload = self.put_uploads.get_mut(key).unwrap();
-        if upload.members.len() == self.inner_n as usize {
-            return;
-        }
-
-        // TODO verify proof
-        // TODO deduplicate
-        let task = self.chunk_store.generate_fragment(key, message.index);
-        let uri = message.peer.uri.clone();
-        let hex_key = hex_string(key);
-        let client_resource = self.client_resource.clone();
-        Self::spawn(self.local.clone(), || async move {
-            let fragment = task.with_current_context().await;
-            let _lock = client_resource.lock().await;
-            Client::new()
-                .post(format!("{uri}/upload/fragment/{hex_key}"))
-                .trace_request()
-                .send_body(fragment)
-                .await
-                .unwrap();
-            Some(())
-        });
-
-        upload.members.push(message);
-        if upload.members.len() == self.inner_n as usize {
-            let upload = self.put_uploads.get(key).unwrap();
-            let hex_key = hex_string(key);
-            for member in upload.members.clone() {
-                let hex_key = hex_key.clone();
-                let members = upload.members.clone();
-                let peer = self.local_peer.clone();
-                let client_resource = self.client_resource.clone();
-                Self::spawn(self.local.clone(), || async move {
-                    // println!("POST /upload/members/{hex_key} -> {}", member.peer.uri);
-                    // let start = std::time::Instant::now();
-                    let _lock = client_resource.lock().await;
-                    Client::new()
-                        .post(format!("{}/upload/members/{hex_key}", member.peer.uri))
-                        .trace_request()
-                        .send_json(&(members, peer))
-                        .await
-                        .expect(&member.peer.uri);
-                    // println!(
-                    //     "[{:?}] POST /upload/members/{hex_key} -> {}",
-                    //     start.elapsed(),
-                    //     member.peer.uri
-                    // );
-                    Some(())
-                });
-            }
-        }
-    }
-
-    #[instrument(skip(self, fragment))]
-    fn handle_upload_push_fragment(&mut self, key: &ChunkKey, fragment: Bytes) {
-        let chunk_state = self.chunk_states.get_mut(key).unwrap();
-        let put_fragment =
-            self.chunk_store
-                .put_fragment(key, chunk_state.local_index, fragment.to_vec());
-        let fragment_present = chunk_state.fragment_present.clone();
-        Self::spawn(self.local.clone(), || async move {
-            put_fragment.with_current_context().await;
-            fragment_present.cancel();
-        });
-    }
-
-    #[instrument(skip(self))]
-    fn handle_upload_push_members(
-        &mut self,
-        key: &ChunkKey,
-        members: Vec<ChunkMember>,
-        peer: Peer,
-    ) {
-        let chunk_state = self.chunk_states.get_mut(key).unwrap();
-        chunk_state.members = members;
-        // TODO index
-
-        let fragment_present = chunk_state.fragment_present.clone();
-        let index = chunk_state.local_index;
-        let local_secret = self.local_secret.clone();
-        let hex_key = hex_string(key);
-        Self::spawn(self.local.clone(), move || async move {
-            fragment_present.cancelled().await;
-            let message = PingMessage {
-                members: Default::default(),
-                index,
-                time: SystemTime::now(),
-                signature: local_secret.sign(&index.to_le_bytes()),
-            };
-            Client::new()
-                .post(format!("{}/upload/ok/{hex_key}", peer.uri))
-                .trace_request()
-                .send_json(&message)
-                .await
-                .unwrap();
-            Some(())
-        });
-    }
-
-    #[instrument(skip(self))]
-    fn handle_upload_ok(&mut self, key: &ChunkKey, message: PingMessage) {
+                .expect("upload chunk quit while receiving up");
         // TODO verify signature
-        let upload = self.put_uploads.get_mut(key).unwrap();
-        upload.present_fragments.insert(message.index);
-        if upload.present_fragments.len() == self.inner_n as usize {
-            self.chunk_store.finish_upload(key);
-            let put_state = &mut self.put_states[upload.benchmark_id];
-            assert!(put_state.put_end.is_none());
-            put_state.uploads.insert(*key);
-            if put_state.uploads.len() == self.outer_n as usize {
-                put_state.put_end = Some(SystemTime::now());
-            }
-        }
+        waiting_up.remove(&index);
+    }
+}
+
+async fn entropy_push_fragment(
+    chunk_key: [u8; 32],
+    index: u32,
+    encoder: Arc<WirehairEncoder>,
+    peer: Peer,
+    config: Arc<StateConfig>,
+) {
+    let mut fragment = vec![0; config.fragment_size as usize];
+    encoder.encode(index, &mut fragment).unwrap();
+    let hex_key = hex_string(&chunk_key);
+    let mut response = Client::new()
+        .post(format!(
+            "{}/entropy/upload/push/{hex_key}/{index}",
+            peer.uri
+        ))
+        .trace_request()
+        .send_body(fragment)
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "{:?}",
+        response.body().await
+    );
+}
+
+#[get("/benchmark/{index}")]
+async fn poll_benchmark(data: Data<State>, index: Path<usize>) -> impl Responder {
+    let benchmarks = data.benchmarks.lock().unwrap();
+    let benchmark = benchmarks[index.into_inner()].lock().unwrap();
+    Json(benchmark.clone())
+}
+
+#[post("/entropy/upload/query/{chunk_key}")]
+async fn entropy_upload_query(
+    data: Data<State>,
+    chunk_key: Path<String>,
+    chunk_member: Bytes,
+) -> impl Responder {
+    data.upload_chunk_states.lock().unwrap()[&parse_key(&chunk_key)]
+        .query
+        .send(bincode::options().deserialize(&chunk_member).unwrap())
+        .unwrap();
+    HttpResponse::Ok()
+}
+
+#[post("/entropy/upload/up/{chunk_key}/{index}")]
+async fn entropy_upload_up(
+    data: Data<State>,
+    path: Path<(String, u32)>,
+    signature: Bytes,
+) -> impl Responder {
+    let (chunk_key, index) = path.into_inner();
+    data.upload_chunk_states.lock().unwrap()[&parse_key(&chunk_key)]
+        .up
+        .send((index, signature))
+        .unwrap();
+    HttpResponse::Ok()
+}
+
+#[post("/entropy/upload/invite/{chunk_key}/{index}")]
+async fn entropy_upload_invite(
+    data: Data<State>,
+    path: Path<(String, u32)>,
+    uploader: Bytes,
+) -> impl Responder {
+    let (chunk_key, index) = path.into_inner();
+    let uploader = bincode::options().deserialize::<Peer>(&uploader).unwrap();
+    // TODO generate proof
+    let chunk_state = ChunkState {
+        index,
+        members: Default::default(),
+        has_fragment: CancellationToken::new(),
+    };
+    let duplicated = data
+        .chunk_states
+        .lock()
+        .unwrap()
+        .insert(parse_key(&chunk_key), chunk_state);
+    assert!(duplicated.is_none());
+
+    let message = bincode::options()
+        .serialize(&ChunkMember {
+            peer: data.config.peer.clone(),
+            index,
+            proof: (),
+        })
+        .unwrap();
+    spawn(&data.pool, move || async move {
+        let mut response = Client::new()
+            .post(format!("{}/entropy/upload/query/{chunk_key}", uploader.uri))
+            .trace_request()
+            .send_body(message)
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "{:?}",
+            response.body().await
+        );
+    });
+
+    HttpResponse::Ok()
+}
+
+#[post("/entropy/upload/push/{chunk_key}/{index}")]
+async fn entropy_upload_push(
+    data: Data<State>,
+    path: Path<(String, u32)>,
+    fragment: Bytes,
+) -> impl Responder {
+    let (chunk_key, index) = path.into_inner();
+    let has_fragment = data.chunk_states.lock().unwrap()[&parse_key(&chunk_key)]
+        .has_fragment
+        .clone();
+    let config = data.config.clone();
+    spawn(&data.pool, move || async move {
+        tokio::fs::create_dir(config.chunk_path.join(&chunk_key))
+            .await
+            .unwrap();
+        tokio::fs::write(
+            config.chunk_path.join(&chunk_key).join(index.to_string()),
+            fragment,
+        )
+        .await
+        .unwrap();
+        has_fragment.cancel();
+    });
+    HttpResponse::Ok()
+}
+
+#[post("/entropy/upload/members/{chunk_key}")]
+async fn entropy_upload_members(
+    data: Data<State>,
+    chunk_key: Path<String>,
+    message: Bytes,
+) -> impl Responder {
+    let message = bincode::options()
+        .deserialize::<ChunkMembersMessage>(&message)
+        .unwrap();
+    let mut chunk_states = data.chunk_states.lock().unwrap();
+    let chunk_state = chunk_states.get_mut(&parse_key(&chunk_key)).unwrap();
+    chunk_state.members = message.members;
+
+    let has_fragment = chunk_state.has_fragment.clone();
+    let index = chunk_state.index;
+    spawn(&data.pool, move || async move {
+        has_fragment.cancelled().await;
+        // TODO spawn check repair task
+        let mut response = Client::new()
+            .post(format!(
+                "{}/entropy/upload/up/{chunk_key}/{index}",
+                message.uploader.uri,
+            ))
+            .trace_request()
+            .send_body(Bytes::default()) // TODO signature
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "{:?}",
+            response.body().await
+        );
+    });
+    HttpResponse::Ok()
+}
+
+async fn entropy_get(
+    benchmark: Arc<Mutex<StateBenchmark>>,
+    upload_chunk_states: Arc<Mutex<HashMap<ChunkKey, UploadChunkState>>>,
+    config: Arc<StateConfig>,
+    pool: LocalPoolHandle,
+) {
+    let download_chunks = {
+        let mut benchmark = benchmark.lock().unwrap();
+        assert!(benchmark.put_end.is_some());
+        assert!(benchmark.get_start.is_none());
+        benchmark.get_start = Some(SystemTime::now());
+        Vec::from_iter(
+            benchmark
+                .chunk_keys
+                .iter()
+                .zip(repeat((upload_chunk_states, config.clone(), pool.clone())))
+                .map(|(&chunk_key, (upload_chunk_states, config, cloned_pool))| {
+                    spawn(&pool, move || {
+                        entropy_download_chunk(chunk_key, upload_chunk_states, config, cloned_pool)
+                    })
+                }),
+        )
+    };
+    let mut download_chunks_set = JoinSet::new();
+    for download_chunk in download_chunks {
+        download_chunks_set.spawn(download_chunk);
     }
 
-    #[instrument(skip(self))]
-    fn handle_get(&mut self, id: usize) {
-        let put_state = &mut self.put_states[id];
-        assert!(put_state.put_end.is_some());
-        assert!(put_state.get_start.is_none());
-        put_state.get_start = Some(SystemTime::now());
-        self.get_recovers.insert(
-            id,
-            WirehairDecoder::new(
-                self.fragment_size as u64 * self.inner_k as u64 * self.outer_k as u64,
-                self.fragment_size * self.inner_k,
-            ),
-        );
-        for key in &self.put_states[id].uploads {
-            self.chunk_store.recover_chunk(key);
-        }
-        for key in &self.put_states[id].uploads {
-            for member in &self.put_uploads[key].members {
-                let peer_uri = member.peer.uri.clone();
-                let hex_key = hex_string(key);
-                let local_peer = self.local_peer.clone();
-                let client_resource = self.client_resource.clone();
-                Self::spawn(self.local.clone(), move || async move {
-                    let _lock = client_resource.lock().await;
-                    Client::new()
-                        .get(format!("{}/download/query/{hex_key}", peer_uri))
+    let mut object_decoder = WirehairDecoder::new(config.object_size(), config.chunk_size());
+    while {
+        let (chunk_index, chunk) = download_chunks_set
+            .join_next()
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        !object_decoder.decode(chunk_index, &chunk).unwrap()
+    } {}
+    let mut object = vec![0; config.object_size() as usize];
+    object_decoder.recover(&mut object).unwrap();
+
+    let mut benchmark = benchmark.lock().unwrap();
+    benchmark.get_end = Some(SystemTime::now());
+    let object_hash = benchmark.object_hash;
+    drop(benchmark);
+    assert_eq!(Sha256::digest(object), object_hash.into());
+}
+
+async fn entropy_download_chunk(
+    chunk_key: ChunkKey,
+    upload_chunk_states: Arc<Mutex<HashMap<ChunkKey, UploadChunkState>>>,
+    config: Arc<StateConfig>,
+    pool: LocalPoolHandle,
+) -> (u32, Vec<u8>) {
+    let upload_chunk_state = upload_chunk_states.lock().unwrap()[&chunk_key].clone();
+    let pull_fragments = Vec::from_iter(
+        upload_chunk_state
+            .members
+            .into_values()
+            .zip(repeat(hex_string(&chunk_key)))
+            .map(|(member, hex_key)| {
+                spawn(&pool, move || async move {
+                    let mut response = Client::new()
+                        .get(format!(
+                            "{}/entropy/download/pull/{hex_key}/{}",
+                            member.peer.uri, member.index
+                        ))
                         .trace_request()
-                        .send_json(&local_peer)
+                        .send()
                         .await
                         .unwrap();
-                    Some(())
-                });
-            }
-        }
+                    assert_eq!(
+                        response.status(),
+                        StatusCode::OK,
+                        "{:?}",
+                        response.body().await
+                    );
+                    (member.index, response.body().limit(16 << 20).await.unwrap())
+                })
+            }),
+    );
+    let mut pull_fragments_set = JoinSet::new();
+    for pull_fragment in pull_fragments {
+        pull_fragments_set.spawn(pull_fragment);
     }
 
-    #[instrument(skip(self))]
-    fn handle_download_query_fragment(&mut self, key: &ChunkKey, peer: Peer) {
-        let Some(chunk_state) = self.chunk_states.get(key) else {
-            return;
-        };
-        assert!(chunk_state.fragment_present.is_cancelled());
-        let task = self.chunk_store.get_fragment(key, chunk_state.local_index);
-        let hex_key = hex_string(key);
-        let index = chunk_state.local_index;
-        Self::spawn(self.local.clone(), move || async move {
-            let fragment = task.with_current_context().await;
-            Client::new()
-                .post(format!("{}/download/fragment/{hex_key}/{index}", peer.uri))
-                .trace_request()
-                .send_body(fragment)
-                .await
-                .unwrap();
-            Some(())
-        });
-    }
+    let mut decoder = WirehairDecoder::new(config.chunk_size() as _, config.fragment_size);
+    while {
+        let (index, fragment) = pull_fragments_set
+            .join_next()
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        !decoder.decode(index, &fragment).unwrap()
+    } {}
+    let mut chunk = vec![0; config.chunk_size() as usize];
+    decoder.recover(&mut chunk).unwrap();
+    (upload_chunk_state.chunk_index, chunk)
+}
 
-    #[instrument(skip(self, fragment))]
-    fn handle_download_push_fragment(&mut self, key: &ChunkKey, index: u32, fragment: Bytes) {
-        if self.put_uploads[key].recovered
-            || !self
-                .get_recovers
-                .contains_key(&self.put_uploads[key].benchmark_id)
-        {
-            return;
-        }
-        let task = self
-            .chunk_store
-            .recover_with_fragment(key, index, fragment.to_vec());
-        let messages = self.messages.clone();
-        let key = *key;
-        Self::spawn(self.local.clone(), move || async move {
-            let chunk = task.with_current_context().await?;
-            messages
-                .upgrade()?
-                .send(AppCommand::DownloadFinish(key, chunk).into())
-                .ok()?;
-            Some(())
-        });
+#[get("/entropy/download/pull/{chunk_key}/{index}")]
+async fn entropy_download_pull(data: Data<State>, path: Path<(String, u32)>) -> impl Responder {
+    let (chunk_key, index) = path.into_inner();
+    {
+        let chunk_states = data.chunk_states.lock().unwrap();
+        let chunk_state = &chunk_states[&parse_key(&chunk_key)];
+        assert_eq!(chunk_state.index, index);
+        assert!(chunk_state.has_fragment.is_cancelled());
     }
-
-    #[instrument(skip(self, chunk))]
-    fn handle_download_finish(&mut self, key: &ChunkKey, chunk: Vec<u8>) {
-        let upload = self.put_uploads.get_mut(key).unwrap();
-        assert!(!upload.recovered);
-        upload.recovered = true;
-        self.chunk_store.finish_recover(key);
-        let Some(decoder) = self.get_recovers.get_mut(&upload.benchmark_id) else {
-            return;
-        };
-        if decoder.decode(upload.chunk_index, &chunk).unwrap() {
-            let decoder = self.get_recovers.remove(&upload.benchmark_id).unwrap();
-            let mut object =
-                vec![
-                    0;
-                    self.fragment_size as usize * self.inner_k as usize * self.outer_k as usize
-                ];
-            decoder.recover(&mut object).unwrap();
-            assert!(self.put_states[upload.benchmark_id].get_end.is_none());
-            self.put_states[upload.benchmark_id].get_end = Some(SystemTime::now());
-            assert_eq!(
-                Sha256::digest(object),
-                self.put_states[upload.benchmark_id].key.into()
-            );
-        }
-    }
-
-    #[instrument(skip(self, result))]
-    fn handle_put_state(&mut self, id: usize, result: oneshot::Sender<PutState>) {
-        let _ = result.send(self.put_states[id].clone());
-    }
-
-    #[instrument(skip(self, message))]
-    fn handle_repair_invite(
-        &mut self,
-        key: &ChunkKey,
-        index: u32,
-        message: Vec<ChunkMember>,
-        result: oneshot::Sender<bool>,
-    ) {
-        let local_member = if let Some(chunk_state) = self.chunk_states.get(key) {
-            if chunk_state.fragment_present.is_cancelled() {
-                let _ = result.send(true);
-                return;
-            }
-            chunk_state
-                .members
-                .iter()
-                .find(|member| member.peer.id == self.local_peer.id)
-                .unwrap()
-                .clone()
-        } else {
-            let mut chunk_state = ChunkState {
-                local_index: index,
-                members: Default::default(),
-                pinged: Default::default(),
-                indexes: 0..1, // TODO
-                fragment_present: CancellationToken::new(),
-            };
-            // TODO generate proof
-            let local_member = ChunkMember {
-                peer: self.local_peer.clone(),
-                index,
-                proof: (),
-            };
-            chunk_state.members.push(local_member.clone());
-            self.chunk_states.insert(*key, chunk_state);
-            local_member
-        };
-        if local_member.index != index {
-            info!(
-                local_index = local_member.index,
-                index, "reject duplicated invite"
-            );
-            let _ = result.send(false);
-            return; //
-        }
-
-        self.chunk_store.recover_chunk(key);
-        let hex_key = hex_string(key);
-        for member in message {
-            // TODO skip query for already-have fragments
-            let local_member = local_member.clone();
-            let hex_key = hex_key.clone();
-            let messages = self.messages.clone();
-            let key = *key;
-            Self::spawn(self.local.clone(), move || async move {
-                let fragment = Client::new()
-                    .get(format!("{}/repair/query/{hex_key}", member.peer.uri))
-                    .trace_request()
-                    .send_json(&local_member)
-                    .await
-                    .ok()?
-                    .body()
-                    .await
-                    .ok()?;
-                messages
-                    .upgrade()?
-                    .send(AppCommand::AcceptRepairFragment(key, member.index, fragment).into())
-                    .ok()?;
-                Some(())
-            });
-        }
-        let _ = result.send(true);
-    }
-
-    #[instrument(skip(self))]
-    fn handle_repair_query_fragment(&mut self, key: &ChunkKey, message: ChunkMember) {
-        // TODO verify proof
-        let Some(chunk_state) = self.chunk_states.get(key) else {
-            return;
-        };
-        assert!(chunk_state.fragment_present.is_cancelled());
-        let task = self.chunk_store.get_fragment(key, chunk_state.local_index);
-        let hex_key = hex_string(key);
-        Self::spawn(self.local.clone(), || async move {
-            let fragment = task.with_current_context().await;
-            Client::new()
-                .post(format!("{}/repair/fragment/{hex_key}", message.peer.uri))
-                .trace_request()
-                .send_body(fragment)
-                .await
-                .ok()?;
-            Some(())
-        });
-    }
-
-    #[instrument(skip(self, message))]
-    fn handle_ping(&mut self, key: &ChunkKey, message: PingMessage) {
-        //
-    }
-
-    #[instrument(skip(self, fragment))]
-    fn handle_repair_push_fragment(&mut self, key: &ChunkKey, index: u32, fragment: Bytes) {
-        let chunk_state = &self.chunk_states[key];
-        if chunk_state.fragment_present.is_cancelled() {
-            //
-            return;
-        }
-        assert_ne!(index, chunk_state.local_index);
-        let task = self.chunk_store.encode_with_fragment(
-            key,
-            index,
-            fragment.to_vec(),
-            chunk_state.local_index,
-        );
-        let messages = self.messages.clone();
-        let key = *key;
-        Self::spawn(self.local.clone(), move || async move {
-            let fragment = task.with_current_context().await?;
-            messages
-                .upgrade()?
-                .send(AppCommand::RepairRecoverFinish(key, fragment).into())
-                .ok()?;
-            Some(())
-        });
-    }
-
-    #[instrument(skip(self, fragment))]
-    fn handle_recover_finish(&mut self, key: &ChunkKey, fragment: Vec<u8>) {
-        self.chunk_store.finish_recover(key);
-        let chunk_state = self.chunk_states.get_mut(key).unwrap();
-        let put_fragment = self
-            .chunk_store
-            .put_fragment(key, chunk_state.local_index, fragment);
-        let fragment_present = chunk_state.fragment_present.clone();
-        Self::spawn(self.local.clone(), || async move {
-            put_fragment.with_current_context().await;
-            fragment_present.cancel();
-        });
-    }
+    tokio::fs::read(
+        data.config
+            .chunk_path
+            .join(chunk_key)
+            .join(index.to_string()),
+    )
+    .await
+    .unwrap()
 }
