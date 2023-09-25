@@ -17,6 +17,7 @@ mod chunk;
 mod common;
 mod peer;
 mod plaza;
+mod app2;
 
 #[derive(clap::Parser)]
 struct Cli {

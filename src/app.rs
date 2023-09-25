@@ -652,7 +652,7 @@ impl State {
                         .trace_request()
                         .send_json(&(members, peer))
                         .await
-                        .expect(&format!("{}", member.peer.uri));
+                        .expect(&member.peer.uri);
                     // println!(
                     //     "[{:?}] POST /upload/members/{hex_key} -> {}",
                     //     start.elapsed(),

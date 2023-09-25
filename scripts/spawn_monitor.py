@@ -89,7 +89,7 @@ async def shutdown_peers():
 
 
 async def main():
-    await prepare()
+    # await prepare()
     # print("run peers")
     if await run_peers():
         exit(1)

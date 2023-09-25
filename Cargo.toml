@@ -14,6 +14,7 @@ strip = true
 actix-web = "4.3.1"
 actix-web-opentelemetry = { version = "0.15.0", features = ["awc"] }
 awc = "3.1.1"
+bincode = "1.3.3"
 clap = { version = "4.3.23", features = ["derive"] }
 ed25519-dalek = { version = "2.0.0", features = ["serde", "rand_core"] }
 opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }
