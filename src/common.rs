@@ -10,7 +10,10 @@ pub fn setup_tracing(pairs: impl IntoIterator<Item = KeyValue>) {
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::EnvFilter;
 
-    opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
+    // opentelemetry::global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
+    opentelemetry::global::set_text_map_propagator(
+        opentelemetry::sdk::propagation::TraceContextPropagator::new(),
+    );
     let tracer = opentelemetry_otlp::new_pipeline()
         .tracing()
         .with_exporter(opentelemetry_otlp::new_exporter().tonic())

@@ -53,7 +53,7 @@ module "group-1" {
     aws = aws.ap-east-1
   }
 
-  instance_count = 1
+  instance_count = 10
 }
 
 module "group-2" {

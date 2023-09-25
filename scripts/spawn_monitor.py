@@ -34,8 +34,8 @@ async def run_peers():
         command = [
             "RUST_LOG=info",
             "RUST_BACKTRACE=1",
-            # "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://18.163.41.210:4317",
-            "OTEL_SDK_DISABLED=true",
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://18.163.41.210:4317",
+            # "OTEL_SDK_DISABLED=true",
             f"{WORK_DIR}/entropy",
             HOST,
             "--port",

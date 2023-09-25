@@ -45,6 +45,12 @@ struct Cli {
     outer_n: u32,
 }
 
+static CLIENT: std::sync::OnceLock<reqwest_middleware::ClientWithMiddleware> =
+    std::sync::OnceLock::new();
+fn client() -> &'static reqwest_middleware::ClientWithMiddleware {
+    CLIENT.get().unwrap()
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -83,6 +89,21 @@ fn main() {
             });
         return;
     }
+
+    CLIENT
+        .set(
+            reqwest_middleware::ClientBuilder::new(
+                reqwest::Client::builder()
+                    .timeout(Duration::from_secs(3))
+                    .build()
+                    .unwrap(),
+            )
+            .with(reqwest_tracing::TracingMiddleware::<
+                reqwest_tracing::SpanBackendWithUrl,
+            >::new())
+            .build(),
+        )
+        .unwrap();
 
     let port = cli.port.unwrap();
     let uri = format!("http://{}:{port}", cli.host);
@@ -184,19 +205,18 @@ fn main() {
 }
 
 async fn plaza_session(plaza: String, shutdown: CancellationToken) {
-    let client = awc::Client::new();
-    let mut response = client.post(format!("{plaza}/join")).send().await.unwrap();
+    let response = client().post(format!("{plaza}/join")).send().await.unwrap();
     assert_eq!(
         response.status(),
         StatusCode::OK,
         "{:?}",
-        response.body().await
+        response.bytes().await
     );
 
     loop {
         sleep(Duration::from_secs(1)).await;
         let global_shutdown = async {
-            let mut response = client
+            let response = client()
                 .get(format!("{plaza}/shutdown"))
                 .send()
                 .await
@@ -205,7 +225,7 @@ async fn plaza_session(plaza: String, shutdown: CancellationToken) {
                 response.status(),
                 StatusCode::OK,
                 "{:?}",
-                response.body().await
+                response.bytes().await
             );
             response.json::<bool>().await.unwrap()
         };
@@ -220,12 +240,16 @@ async fn plaza_session(plaza: String, shutdown: CancellationToken) {
         }
     }
 
-    let mut response = client.post(format!("{plaza}/leave")).send().await.unwrap();
+    let response = client()
+        .post(format!("{plaza}/leave"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(
         response.status(),
         StatusCode::OK,
         "{:?}",
-        response.body().await
+        response.bytes().await
     );
     // println!("{} leaved", peer.uri);
 }

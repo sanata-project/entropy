@@ -13,8 +13,7 @@ use actix_web::{
     web::{Bytes, Data, Json, Path, ServiceConfig},
     HttpResponse, Responder,
 };
-use actix_web_opentelemetry::ClientExt;
-use awc::Client;
+
 use bincode::Options;
 use opentelemetry::trace::FutureExt;
 use rand::RngCore;
@@ -24,7 +23,7 @@ use tokio::{sync::mpsc, task::JoinSet};
 use tokio_util::{sync::CancellationToken, task::LocalPoolHandle};
 use wirehair::{WirehairDecoder, WirehairEncoder};
 
-use crate::{common::hex_string, peer, ChunkKey, Peer};
+use crate::{client, common::hex_string, peer, ChunkKey, Peer};
 
 fn fragment_id(key: &ChunkKey, index: u32) -> [u8; 32] {
     Sha256::new()
@@ -290,20 +289,27 @@ async fn entropy_upload_chunk(
         peers.into_iter().zip(repeat((hex_key.clone(), message)))
     {
         spawn(&pool, move || async move {
-            let mut response = Client::new()
+            let mut headers = reqwest::header::HeaderMap::new();
+            let cx = opentelemetry::Context::current();
+            opentelemetry::global::get_text_map_propagator(|propagator| {
+                propagator
+                    .inject_context(&cx, &mut opentelemetry_http::HeaderInjector(&mut headers))
+            });
+            let response = client()
                 .post(format!(
                     "{}/entropy/upload/invite/{hex_key}/{index}",
                     peer.uri
                 ))
-                .trace_request()
-                .send_body(message)
+                .headers(headers)
+                .body(message)
+                .send()
                 .await
                 .unwrap();
             assert_eq!(
                 response.status(),
                 StatusCode::OK,
                 "{:?}",
-                response.body().await
+                response.bytes().await
             );
         });
     }
@@ -345,17 +351,17 @@ async fn entropy_upload_chunk(
     for (member, (hex_key, message)) in members.values().zip(repeat((hex_key, message))) {
         let uri = member.peer.uri.clone();
         spawn(&pool, move || async move {
-            let mut response = Client::new()
+            let response = client()
                 .post(format!("{uri}/entropy/upload/members/{hex_key}"))
-                .trace_request()
-                .send_body(message)
+                .body(message)
+                .send()
                 .await
                 .unwrap();
             assert_eq!(
                 response.status(),
                 StatusCode::OK,
                 "{:?}",
-                response.body().await
+                response.bytes().await
             );
         });
     }
@@ -382,22 +388,21 @@ async fn entropy_push_fragment(
     let mut fragment = vec![0; config.fragment_size as usize];
     encoder.encode(index, &mut fragment).unwrap();
     let hex_key = hex_string(&chunk_key);
-    let mut response = Client::builder()
-        .disable_timeout()
-        .finish()
+    let response = client()
         .post(format!(
             "{}/entropy/upload/push/{hex_key}/{index}",
             peer.uri
         ))
-        .trace_request()
-        .send_body(fragment)
+        .timeout(std::time::Duration::from_secs(20))
+        .body(fragment)
+        .send()
         .await
         .unwrap();
     assert_eq!(
         response.status(),
         StatusCode::OK,
         "{:?}",
-        response.body().await
+        response.bytes().await
     );
 }
 
@@ -464,17 +469,17 @@ async fn entropy_upload_invite(
         })
         .unwrap();
     spawn(&data.pool, move || async move {
-        let mut response = Client::new()
+        let response = client()
             .post(format!("{}/entropy/upload/query/{chunk_key}", uploader.uri))
-            .trace_request()
-            .send_body(message)
+            .body(message)
+            .send()
             .await
             .unwrap();
         assert_eq!(
             response.status(),
             StatusCode::OK,
             "{:?}",
-            response.body().await
+            response.bytes().await
         );
     });
 
@@ -525,20 +530,20 @@ async fn entropy_upload_members(
     spawn(&data.pool, move || async move {
         has_fragment.cancelled().await;
         // TODO spawn check repair task
-        let mut response = Client::new()
+        let response = client()
             .post(format!(
                 "{}/entropy/upload/up/{chunk_key}/{index}",
                 message.uploader.uri,
             ))
-            .trace_request()
-            .send_body(Bytes::default()) // TODO signature
+            .body(Bytes::default()) // TODO signature
+            .send()
             .await
             .unwrap();
         assert_eq!(
             response.status(),
             StatusCode::OK,
             "{:?}",
-            response.body().await
+            response.bytes().await
         );
     });
     HttpResponse::Ok()
@@ -606,12 +611,11 @@ async fn entropy_download_chunk(
             .zip(repeat(hex_string(&chunk_key)))
             .map(|(member, hex_key)| {
                 spawn(&pool, move || async move {
-                    let mut response = Client::new()
+                    let response = client()
                         .get(format!(
                             "{}/entropy/download/pull/{hex_key}/{}",
                             member.peer.uri, member.index
                         ))
-                        .trace_request()
                         .send()
                         .await
                         .unwrap();
@@ -619,9 +623,9 @@ async fn entropy_download_chunk(
                         response.status(),
                         StatusCode::OK,
                         "{:?}",
-                        response.body().await
+                        response.bytes().await
                     );
-                    (member.index, response.body().limit(16 << 20).await.unwrap())
+                    (member.index, response.bytes().await.unwrap())
                 })
             }),
     );

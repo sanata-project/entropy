@@ -23,12 +23,12 @@ INNER_K = 32
 INNER_N = 80
 OUTER_K = 8
 OUTER_N = 10
-FRAGMENT_SIZE = int((1 << 30) / INNER_K / OUTER_K)
+# FRAGMENT_SIZE = int((1 << 30) / INNER_K / OUTER_K)
 # INNER_K = 2
 # INNER_N = 4
 # OUTER_K = 2
 # OUTER_N = 4
-# FRAGMENT_SIZE = 100
+FRAGMENT_SIZE = 100
 
 if __name__ == "__main__":
     print(globals()[argv[1]])
