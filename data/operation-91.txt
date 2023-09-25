@@ -1,0 +1,33 @@
+comment,peer,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent,num_participant
+00 commit put operation on http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000
+01 commit put operation on http://ec2-52-53-176-146.us-west-1.compute.amazonaws.com:10000
+02 commit put operation on http://ec2-35-159-25-96.eu-central-1.compute.amazonaws.com:10000
+03 commit put operation on http://ec2-13-245-13-80.af-south-1.compute.amazonaws.com:10000
+04 commit put operation on http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000
+05 commit put operation on http://ec2-3-79-242-17.eu-central-1.compute.amazonaws.com:10000
+06 commit put operation on http://ec2-54-233-194-85.sa-east-1.compute.amazonaws.com:10000
+07 commit put operation on http://ec2-16-163-42-122.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-52-53-176-146.us-west-1.compute.amazonaws.com:10000,put,10.451372861862183,kademlia,32,80,8,10,8,9000
+,http://ec2-16-163-42-122.ap-east-1.compute.amazonaws.com:10000,put,12.105025291442871,kademlia,32,80,8,10,8,9000
+01 commit get operation on http://ec2-52-53-176-146.us-west-1.compute.amazonaws.com:10000
+07 commit get operation on http://ec2-16-163-42-122.ap-east-1.compute.amazonaws.com:10000
+,http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000,put,12.375459909439087,kademlia,32,80,8,10,8,9000
+,http://ec2-54-233-194-85.sa-east-1.compute.amazonaws.com:10000,put,12.256973028182983,kademlia,32,80,8,10,8,9000
+,http://ec2-13-245-13-80.af-south-1.compute.amazonaws.com:10000,put,12.613410472869873,kademlia,32,80,8,10,8,9000
+04 commit get operation on http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000
+06 commit get operation on http://ec2-54-233-194-85.sa-east-1.compute.amazonaws.com:10000
+,http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000,put,13.601727962493896,kademlia,32,80,8,10,8,9000
+03 commit get operation on http://ec2-13-245-13-80.af-south-1.compute.amazonaws.com:10000
+,http://ec2-35-159-25-96.eu-central-1.compute.amazonaws.com:10000,put,13.977495193481445,kademlia,32,80,8,10,8,9000
+00 commit get operation on http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000
+02 commit get operation on http://ec2-35-159-25-96.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-3-79-242-17.eu-central-1.compute.amazonaws.com:10000,put,15.234668731689453,kademlia,32,80,8,10,8,9000
+05 commit get operation on http://ec2-3-79-242-17.eu-central-1.compute.amazonaws.com:10000
+,http://ec2-18-166-78-231.ap-east-1.compute.amazonaws.com:10000,get,8.78364634513855,kademlia,32,80,8,10,8,9000
+,http://ec2-52-53-176-146.us-west-1.compute.amazonaws.com:10000,get,11.703192949295044,kademlia,32,80,8,10,8,9000
+,http://ec2-16-163-42-122.ap-east-1.compute.amazonaws.com:10000,get,14.152049779891968,kademlia,32,80,8,10,8,9000
+,http://ec2-35-159-25-96.eu-central-1.compute.amazonaws.com:10000,get,12.064579248428345,kademlia,32,80,8,10,8,9000
+,http://ec2-13-245-13-80.af-south-1.compute.amazonaws.com:10000,get,14.396515369415283,kademlia,32,80,8,10,8,9000
+,http://ec2-3-79-242-17.eu-central-1.compute.amazonaws.com:10000,get,12.514499187469482,kademlia,32,80,8,10,8,9000
+,http://ec2-54-233-194-85.sa-east-1.compute.amazonaws.com:10000,get,14.802741289138794,kademlia,32,80,8,10,8,9000
+,http://ec2-54-232-244-125.sa-east-1.compute.amazonaws.com:10000,get,14.299341917037964,kademlia,32,80,8,10,8,9000

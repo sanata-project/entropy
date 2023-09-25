@@ -13,6 +13,7 @@ from common import (
     OUTER_N,
     PROTOCOL,
     NUM_OPERATION,
+    NUM_TOTAL_PEER,
 )
 
 
@@ -49,7 +50,7 @@ async def put_get(i, peer):
                     break
         latency = to_timestamp(result["put_end"]) - to_timestamp(result["put_start"])
         print(
-            f",{peer},put,{latency},{PROTOCOL},{INNER_K},{INNER_N},{OUTER_K},{OUTER_N},{NUM_CONCURRENT}"
+            f",{peer},put,{latency},{PROTOCOL},{INNER_K},{INNER_N},{OUTER_K},{OUTER_N},{NUM_CONCURRENT},{NUM_TOTAL_PEER}"
         )
         await asyncio.sleep(1)
 
@@ -63,7 +64,7 @@ async def put_get(i, peer):
                     break
         latency = to_timestamp(result["get_end"]) - to_timestamp(result["get_start"])
         print(
-            f",{peer},get,{latency},{PROTOCOL},{INNER_K},{INNER_N},{OUTER_K},{OUTER_N},{NUM_CONCURRENT}"
+            f",{peer},get,{latency},{PROTOCOL},{INNER_K},{INNER_N},{OUTER_K},{OUTER_N},{NUM_CONCURRENT},{NUM_TOTAL_PEER}"
         )
         await asyncio.sleep(1)
     return peer
@@ -80,7 +81,7 @@ def choose_peer(peers, working_peers):
 
 async def main():
     print(
-        "comment,peer,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent"
+        "comment,peer,operation,latency,protocol,inner_k,inner_n,outer_k,outer_n,num_concurrent,num_participant"
     )
     await ready()
     peers = [
