@@ -24,8 +24,10 @@ mod plaza;
 #[derive(clap::Parser)]
 struct Cli {
     host: String,
+
     #[clap(long)]
     plaza_service: Option<usize>,
+
     #[clap(long)]
     plaza: Option<String>,
     #[clap(long)]
@@ -54,7 +56,10 @@ fn main() {
 
     if let Some(num_participant) = cli.plaza_service {
         let shutdown = CancellationToken::new();
-        let state = Data::new(plaza::State::new(num_participant, shutdown.clone()));
+        let state = Data::new(plaza::State::new(
+            num_participant,
+            shutdown.clone(),
+        ));
         let server = HttpServer::new(move || {
             App::new()
                 .wrap(actix_web_opentelemetry::RequestTracing::new())
@@ -64,8 +69,9 @@ fn main() {
                 .service(plaza::poll_ready)
                 .service(plaza::shutdown)
                 .service(plaza::poll_status)
-                .service(plaza::repair)
+                .service(plaza::start_repair)
                 .service(plaza::repair_finish)
+                .service(plaza::poll_repair_finish)
         })
         .bind((cli.host, 8080))
         .unwrap()
@@ -132,13 +138,7 @@ fn main() {
         peer: peer.clone(),
         peer_secret: signing_key,
     };
-    let repair_finish = mpsc::unbounded_channel();
-    let state = Data::new(app::State::new(
-        config,
-        pool.clone(),
-        peer_store,
-        repair_finish.0,
-    ));
+    let state = Data::new(app::State::new(config, pool.clone(), peer_store));
     let server = {
         let state = state.clone();
         HttpServer::new(move || {
@@ -182,7 +182,7 @@ fn main() {
                 let plaza = common::aws_dns_to_ip(cli.plaza.clone().unwrap());
                 let shutdown = shutdown.clone();
                 let pool = pool.clone();
-                move || plaza_session(plaza, shutdown.clone(), state, repair_finish.1, pool)
+                move || plaza_session(plaza, shutdown.clone(), state, pool)
             });
 
             spawn(async move {
@@ -203,7 +203,6 @@ async fn plaza_session(
     plaza: String,
     shutdown: CancellationToken,
     state: Data<app::State>,
-    repair_finish: mpsc::UnboundedReceiver<[u8; 32]>,
     pool: LocalPoolHandle,
 ) {
     // use rand::Rng;
@@ -218,7 +217,7 @@ async fn plaza_session(
         response.body().await
     );
 
-    let mut repair_finish = Some(repair_finish);
+    let mut repair_epoch = 0;
     loop {
         sleep(Duration::from_secs(1)).await;
         let pool_uri = format!("{plaza}/status");
@@ -245,30 +244,30 @@ async fn plaza_session(
             break;
         }
 
-        if status.repair {
-            if let Some(mut repair_finish) = repair_finish.take() {
-                let start = Instant::now();
-                state.repair();
-                let repair_finish_uri = format!("{plaza}/repair/finish");
-                pool.spawn_pinned(move || async move {
-                    let client = awc::Client::new();
-                    while let Some(chunk_key) = repair_finish.recv().await {
-                        client
-                            .post(&repair_finish_uri)
-                            .send_body(
-                                bincode::options()
-                                    .serialize(&plaza::RepairFinishMessage {
-                                        key: chunk_key,
-                                        duration: start.elapsed(),
-                                    })
-                                    .unwrap(),
-                            )
-                            .await
-                            .unwrap();
-                    }
-                });
-            }
+        if status.repair > repair_epoch {
+            let start = Instant::now();
+            let mut repair_finish = mpsc::unbounded_channel();
+            state.repair(repair_finish.0);
+            let repair_finish_uri = format!("{plaza}/repair/finish");
+            pool.spawn_pinned(move || async move {
+                let client = awc::Client::new();
+                while let Some(chunk_key) = repair_finish.1.recv().await {
+                    client
+                        .post(&repair_finish_uri)
+                        .send_body(
+                            bincode::options()
+                                .serialize(&plaza::RepairFinishMessage {
+                                    key: chunk_key,
+                                    duration: start.elapsed(),
+                                })
+                                .unwrap(),
+                        )
+                        .await
+                        .unwrap();
+                }
+            });
         }
+        repair_epoch = status.repair;
     }
 
     let mut response = client.post(format!("{plaza}/leave")).send().await.unwrap();

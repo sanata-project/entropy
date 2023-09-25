@@ -54,7 +54,6 @@ pub struct State {
     upload_chunk_states: Arc<Mutex<HashMap<ChunkKey, UploadChunkState>>>,
     chunk_states: Arc<Mutex<HashMap<ChunkKey, ChunkState>>>,
     peer_store: Arc<Mutex<peer::Store>>,
-    repair_finish: mpsc::UnboundedSender<[u8; 32]>,
 }
 
 #[derive(Debug, Clone)]
@@ -109,7 +108,7 @@ struct ChunkState {
     members: BTreeMap<u32, ChunkMember>,
     has_fragment: CancellationToken,
     repair: mpsc::UnboundedSender<(u32, Bytes)>,
-    is_inviting: bool,
+    repair_finish: Option<mpsc::UnboundedSender<[u8; 32]>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -120,12 +119,7 @@ struct ChunkMember {
 }
 
 impl State {
-    pub fn new(
-        config: StateConfig,
-        pool: LocalPoolHandle,
-        peer_store: peer::Store,
-        repair_finish: mpsc::UnboundedSender<[u8; 32]>,
-    ) -> Self {
+    pub fn new(config: StateConfig, pool: LocalPoolHandle, peer_store: peer::Store) -> Self {
         Self {
             config: Arc::new(config),
             pool,
@@ -133,7 +127,6 @@ impl State {
             upload_chunk_states: Default::default(),
             chunk_states: Default::default(),
             peer_store: Arc::new(Mutex::new(peer_store)),
-            repair_finish,
         }
     }
 
@@ -503,7 +496,7 @@ async fn entropy_upload_invite(
         members: Default::default(),
         has_fragment: CancellationToken::new(),
         repair: mpsc::unbounded_channel().0,
-        is_inviting: false,
+        repair_finish: None,
     };
     let duplicated = data
         .chunk_states
@@ -891,7 +884,7 @@ async fn kademlia_download_pull(data: Data<State>, part_id: Path<String>) -> imp
 }
 
 impl State {
-    pub fn repair(&self) {
+    pub fn repair(&self, repair_finish: mpsc::UnboundedSender<[u8; 32]>) {
         let mut chunk_states = self.chunk_states.lock().unwrap();
         for chunk_key in Vec::from_iter(chunk_states.keys().copied()) {
             let chunk_state = chunk_states.get_mut(&chunk_key).unwrap();
@@ -909,7 +902,7 @@ impl State {
                 continue;
             }
             if chunk_state.index == *chunk_state.members.last_key_value().unwrap().0 {
-                chunk_state.is_inviting = true;
+                chunk_state.repair_finish = Some(repair_finish.clone());
                 let mut peer;
                 let mut index = chunk_state.index + 1;
                 loop {
@@ -971,7 +964,7 @@ async fn entropy_repair_invite(
         members: members.clone(),
         has_fragment: CancellationToken::new(),
         repair: repair.0,
-        is_inviting: false,
+        repair_finish: None,
     };
     let duplicated = data
         .chunk_states
@@ -1179,8 +1172,10 @@ async fn entropy_repair_up(
     let chunk_state = chunk_states.get_mut(&chunk_key).unwrap();
     // TODO verify proof
     chunk_state.members.extend(message.members);
-    if chunk_state.members.len() >= data.config.inner_n as usize && chunk_state.is_inviting {
-        data.repair_finish.send(chunk_key).unwrap();
+    if chunk_state.members.len() >= data.config.inner_n as usize {
+        if let Some(repair_finish) = chunk_state.repair_finish.take() {
+            repair_finish.send(chunk_key).unwrap();
+        }
     }
     HttpResponse::Ok()
 }

@@ -1,5 +1,5 @@
 use std::{
-    sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
+    sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering::SeqCst},
     time::Duration,
 };
 
@@ -17,7 +17,8 @@ pub struct State {
     num_join: AtomicUsize,
     shutdown: AtomicBool,
     shutdown_server: CancellationToken,
-    repair: AtomicBool,
+    repair_epoch: AtomicU32,
+    num_repair_finish: AtomicU32,
 }
 
 #[post("/join")]
@@ -60,15 +61,15 @@ pub async fn shutdown(data: Data<State>) -> HttpResponse {
 
 #[post("/repair")]
 #[tracing::instrument(skip(data))]
-pub async fn repair(data: Data<State>) -> HttpResponse {
-    data.repair.store(true, SeqCst);
+pub async fn start_repair(data: Data<State>) -> HttpResponse {
+    data.repair_epoch.fetch_add(1, SeqCst);
     HttpResponse::Ok().finish()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PollMessage {
     pub shutdown: bool,
-    pub repair: bool,
+    pub repair: u32,
 }
 
 #[get("/status")]
@@ -76,7 +77,7 @@ pub struct PollMessage {
 pub async fn poll_status(data: Data<State>) -> HttpResponse {
     HttpResponse::Ok().json(PollMessage {
         shutdown: data.shutdown.load(SeqCst),
-        repair: data.repair.load(SeqCst),
+        repair: data.repair_epoch.load(SeqCst),
     })
 }
 
@@ -87,8 +88,8 @@ pub struct RepairFinishMessage {
 }
 
 #[post("/repair/finish")]
-#[tracing::instrument]
-pub async fn repair_finish(message: Bytes) -> HttpResponse {
+#[tracing::instrument(skip(data))]
+pub async fn repair_finish(data: Data<State>, message: Bytes) -> HttpResponse {
     let message = bincode::options()
         .deserialize::<RepairFinishMessage>(&message)
         .unwrap();
@@ -97,7 +98,13 @@ pub async fn repair_finish(message: Bytes) -> HttpResponse {
         crate::common::hex_string(&message.key),
         message.duration.as_secs_f32()
     );
+    data.num_repair_finish.fetch_add(1, SeqCst);
     HttpResponse::Ok().finish()
+}
+
+#[get("/repair/finish")]
+pub async fn poll_repair_finish(data: Data<State>) -> HttpResponse {
+    HttpResponse::Ok().json(data.num_repair_finish.load(SeqCst))
 }
 
 impl State {
@@ -107,7 +114,8 @@ impl State {
             num_join: Default::default(),
             shutdown: Default::default(),
             shutdown_server,
-            repair: Default::default(),
+            repair_epoch: Default::default(),
+            num_repair_finish: Default::default(),
         }
     }
 }
